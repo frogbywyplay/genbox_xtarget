@@ -1,0 +1,7 @@
+# genbox-config is the default base profile
+gaiaba	genbox	stable
+ipboxa	genbox	stable
+mdboxa	genbox	stable
+bcm97405 genbox dev 
+arghda genbox dev 
+argdla genbox dev 

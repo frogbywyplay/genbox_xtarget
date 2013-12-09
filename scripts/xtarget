@@ -1,0 +1,137 @@
+#!/usr/bin/python2.5
+
+import sys
+
+from optparse import OptionParser, Option
+
+from xutils import die, verbose, color
+
+from xtarget import XTargetCmdline 
+
+options_default=[
+                Option('-v',  '--verbose',
+                       action='store_true',
+                       dest='verbose',
+                       help='Turn on verbose mode'),
+                ]
+
+options_portage=[
+                Option('-a', '--arch',
+                       action='store',
+                       dest='arch',
+                       help='Set architecture type'),
+                ]
+
+
+options_create= [
+                Option('-d', '--dir',
+                       action='store',
+                       dest='dir',
+                       help='Set target\'s directory (default: target\'s name)'),
+                ] + options_default + options_portage
+
+options_list_targets= options_default
+
+options_list_profiles= options_default + options_portage
+
+options_actions=[
+                ('-l',  '--list', 'List installed targets', options_list_targets,
+                 '%prog --list [options]', 'List installed targets'),
+
+                ('-c',  '--create', 'Create a new target', options_create,
+                 '%prog --create target [options]', 'Create a new target (takes pkg_atom as argument)'),
+
+                ('-p',  '--list-profiles', 'List avaiable targets', options_list_profiles,
+                 '%prog --list-profiles [target] [options]', 'List avaible targets (pkg_atom can be specified)'),
+
+                ('-s',  '--set', 'Set current target', None,
+                 '%prog --set name', 'Set current target'),
+
+                ('-d',  '--delete', 'Delete a target', None,
+                 '%prog --delete name', 'Delete current target (provide a path, target name or just \"current\")'),
+
+		('', '--sync', 'Sync target description overlay', options_default,
+                 '%prog --sync', 'Sync target description overlay'),
+
+		('', '--sync-target-overlays', 'Sync target\'s overlays', options_default,
+                 '%prog --sync-target-overlays', 'Sync target\'s overlays to release specified revision'),
+
+		('', '--info', 'List current configuration for xtarget', None,
+                 '%prog --info', 'List current configuration for xtarget'),
+                ]
+
+def action_parser_callback(option, opt_str, value, parser, *args, **kwargs):
+        sub_parser = OptionParser(usage = kwargs['usage'], description = kwargs['desc'])
+
+        setattr(parser.values, "action", option.get_opt_string()[2:])
+        if kwargs.get('opts'):
+                for opt in kwargs['opts']:
+                        sub_parser.add_option(opt)
+        (parser.values, rargs) = sub_parser.parse_args(args=parser.rargs, values=parser.values)
+        del parser.rargs[:]
+        parser.rargs.extend(rargs)
+
+if __name__ == "__main__":
+        parser = OptionParser(usage = "%prog [action] [options]",
+                        description = "To print an action's help run : %prog \"action\" --help")
+        parser.set_default('action', None)
+
+        for ii in options_default:
+                parser.add_option(ii)
+        for (short, long, help, sub_opts, usage, desc) in options_actions:
+                parser.add_option(short, long,
+                                  help=help,
+                                  action='callback',
+                                  callback=action_parser_callback,
+                                  callback_kwargs={
+                                                   'opts' : sub_opts,
+                                                   'usage' : usage,
+                                                   'desc' : desc,
+                                                  })
+        (values, args) = parser.parse_args()
+
+        if not values.action:
+               parser.error('An action is required')
+
+        arch = values.ensure_value('arch', None)
+
+        if values.ensure_value('verbose', False):
+                verbose(True)
+
+        action = values.action
+	if action == "sync" or action == "info":
+		tb = XTargetCmdline(arch,
+				    sync=True)
+	else:
+		tb = XTargetCmdline(arch)
+
+        if action == "list-profiles":
+                if args and len(args) >= 1:
+                        tb.list_profiles(args[0])
+                else:
+                        tb.list_profiles()
+        elif action == "list":
+                tb.list_targets()
+        elif action == "create":
+                if not (args and len(args) == 1):
+                        parser.error("a target name is required")
+                tb.create(args[0],
+                          arch,
+                          values.ensure_value('dir', None))
+        elif action == "set":
+                if not (args and len(args) == 1):
+                        parser.error("a target name is required")
+                tb.set(args[0])
+        elif action == "delete":
+                if not (args and len(args) == 1):
+                        parser.error("a target name is required")
+                tb.delete(args[0])
+	elif action == "sync":
+		tb.sync()
+        elif action == "sync_overlay":
+                tb.sync_overlay()
+	elif action == "info":
+		tb.info()
+        else:
+                parser.error("unknown action")
+

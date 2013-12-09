@@ -1,0 +1,81 @@
+#!/usr/bin/python2.5
+
+import sys, os
+
+from xutils import die, info, userquery
+from xutils.ebuild import ebuild_factory
+
+from xtarget import get_current_target, XTargetReleaseParser, XTargetBuilder, XTargetError
+from xtarget.config import load_config
+
+def is_last_sync(portdir):
+        curr = os.path.realpath(portdir)
+        portages=[os.getenv("PORTDIR", None)]
+        overlays = os.getenv("PORTDIR_OVERLAY", None)
+        if overlays:
+                portages.extend(overlays.split())
+        return curr == os.path.realpath(portages[-1])
+
+if __name__ == "__main__":
+        root = os.getenv('ROOT', None)
+        no_up = os.getenv('NO_TARGET_UPDATE', '')
+
+        if not root or root == '/' or no_up:
+                sys.exit(0)
+        if not (len(sys.argv) > 1 and is_last_sync(sys.argv[1])):
+                sys.exit(0)
+
+        var_list = os.environ.copy()
+        for var in var_list:
+                if var not in [ 'SSH_AUTH_SOCK', 'PATH', 'EHG_BASE_URI', 'PORTAGE_NOASK' ]:
+                        os.unsetenv(var)
+                        os.environ.pop(var)
+
+        cfg = load_config()
+        rel = XTargetReleaseParser().get(root + '/..', cfg['release_file'])
+
+        if not rel or not (rel.has_key('arch') and \
+                           rel.has_key('name') and \
+                           rel.has_key('version')):
+                die('Can\'t find /etc/target-release file')
+
+        xt = XTargetBuilder(arch=rel['arch'], stdout=sys.stdout, stderr=sys.stderr, config=os.getenv('XTARGET_CONFIG', None))
+        if not xt.xportage.portdb:
+                xt.xportage.create_trees()
+
+        target_list = xt.xportage.match_all(rel['name'])
+        templates = []
+        for target in target_list:
+                eb_file = xt.xportage.portdb.findname(target)
+                if not eb_file:
+                        continue
+                ebuild = ebuild_factory(eb_file)
+                if ebuild and ebuild.get_type() == 'target' and ebuild.is_template():
+                        templates.append(ebuild)
+
+        def nmatch(str1, str2):
+                i = 1
+                for i in range(1, min(len(str1), len(str2))):
+                        if str1[i] != str2[i]:
+                                return i
+                return i
+        if len(templates) > 1:
+                max = 0
+                for t in templates:
+                        curr = nmatch(rel['version'], ".".join(t.pv['number']))
+                        if curr > max:
+                                max = curr
+                                res = t
+                templates = [ res ]
+  
+        if len(templates) == 0:
+                die('Can\'t find any templates matching %s' % rel['name'])
+        elif len(templates) > 1:
+                die('Too man templates matching %s' % rel['name'])
+        name = '%s/%s' % (templates[0].get_category(), templates[0].get_name())
+        if "yes" == os.getenv('PORTAGE_NOASK', 'no') or userquery('Should we update target\'s config to head revision, %s ?' % name):
+                try:
+                        xt.create('=%s' % name, arch=rel['arch'], dir=root + '/../')
+                except XTargetError, e:
+                        die (str(e))
+
