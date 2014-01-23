@@ -90,7 +90,7 @@ def find_packages(dir):
 
 setup(
     name = "xtarget",
-    version = "2.0.12",
+    version = "2.0.13",
     description = "Xtarget tools for genbox",
     author = "Wyplay",
     author_email = "noreply@wyplay.com",
