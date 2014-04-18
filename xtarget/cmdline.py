@@ -181,3 +181,9 @@ class XTargetCmdline(XTargetBuilder):
                 print "Sync revision:", self.cfg.get('ov_rev', 'undefined')
                 print "Targets release file:", self.cfg.get('release_file', 'undefined')
 
+        def get(self, key):
+                try:
+                        print "%s" % XTargetBuilder.get(self, key)
+                except XTargetError, e:
+                        die(str(e))
+

@@ -370,6 +370,14 @@ class XTargetBuilder(object):
                 if ret2 != 0:
                         raise XTargetError("Merging libc failed")
 
+        def get(self, key):
+                rel = XTargetReleaseParser().get(self.get_current(), self.cfg['release_file'])
+                if not rel:
+                        raise XTargetError("Parsing target release file failed")
+                if not rel.has_key(key):
+                        raise XTargetError("Key '%s' is not available in target release file" % key)
+                return rel[key]
+        
         def _mk_tmpdir(self):
                 if not os.path.exists(self.cfg['tmpdir'] + "/etc"):
                         os.makedirs(self.cfg['tmpdir'] + "/etc")

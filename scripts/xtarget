@@ -58,6 +58,15 @@ options_actions=[
 
 		('', '--info', 'List current configuration for xtarget', None,
                  '%prog --info', 'List current configuration for xtarget'),
+                
+                ('', '--get-version', 'Get current target version', None,
+                 '%prog --get-version', 'Get current target version'),
+
+                ('', '--get-arch', 'Get current target architecture', None,
+                 '%prog --get-arch', 'Get current target architecture'),
+
+                ('', '--get-package', 'Get current target category/package', None,
+                 '%prog --get-package', 'Get current target category/package'),
                 ]
 
 def action_parser_callback(option, opt_str, value, parser, *args, **kwargs):
@@ -132,6 +141,13 @@ if __name__ == "__main__":
                 tb.sync_overlay()
 	elif action == "info":
 		tb.info()
+        elif action == "get-version":
+                tb.get("version")
+        elif action == "get-arch":
+                tb.get("arch")
+        elif action == "get-package":
+                # package: CATEGORY/PN is stored as 'name' in target release file
+                tb.get("name")
         else:
                 parser.error("unknown action")
 
