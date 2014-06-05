@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
         var_list = os.environ.copy()
         for var in var_list:
-                if var not in [ 'SSH_AUTH_SOCK', 'PATH', 'EHG_BASE_URI', 'PORTAGE_NOASK' ]:
+                if var not in [ 'SSH_AUTH_SOCK', 'PATH', 'EHG_BASE_URI', 'PORTAGE_NOASK', 'http_proxy', 'https_proxy' ]:
                         os.unsetenv(var)
                         os.environ.pop(var)
 
