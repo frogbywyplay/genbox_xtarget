@@ -36,7 +36,9 @@ class xtargetBuilderTester(unittest.TestCase):
                 unittest.TestCase.__init__(self, methodName)
                 self.path = os.path.realpath(os.path.dirname(sys.modules[__name__].__file__))
 
-        def initEnv(self):
+        def setUp(self):
+                self.cleanup_dirs()
+                # recreate...
                 cfg = open(self.path + '/xtarget.cfg', 'w')
                 cfg.write('[consts]\n')
                 cfg.write('autocurrent = True\n')
@@ -45,25 +47,29 @@ class xtargetBuilderTester(unittest.TestCase):
                 cfg.write('dir = %s\n' % (self.path + TMP_TARGETS))
                 cfg.write('portdir = %s\n' % (self.path + OV_TARGETS))
                 cfg.close()
-
-        def __cleanTmpTargets(self):
-                os.system('rm -rf %s' % (self.path + TMP_TARGETS))
                 os.makedirs(self.path + TMP_TARGETS)
 
+        def cleanup_dirs(self):
+                '''Erase all temporary dirs and files if any.'''
+                os.system('rm -rf %s' % (self.path + TMP_TARGETS))
+                os.system('rm -f %s' % (self.path + '/xtarget.cfg'))
+
+        def tearDown(self):
+                self.cleanup_dirs()
+
         def testListProfiles(self):
-                self.initEnv()
                 xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
-                self.failUnlessEqual(xtarget.list_profiles('wms'),
+                self.assertEqual(xtarget.list_profiles('wms'),
                                      (['base-targets/wms-1.3.15.0'],
                                       ['base-targets/wms-1.3.15.0']))
-                self.failUnlessEqual(xtarget.list_profiles('>=wms-sdk-1.3.15.2'),
+                self.assertEqual(xtarget.list_profiles('>=wms-sdk-1.3.15.2'),
                                      (['base-targets/wms-sdk-1.3.15.2', 'base-targets/wms-sdk-1.3.15.3'],
                                       ['base-targets/wms-sdk-1.3.15.3']))
                 
-                self.failUnlessEqual(xtarget.list_profiles(),
+                self.assertEqual(xtarget.list_profiles(),
                                      (['base-targets/test-prebuilt', 'base-targets/wms', 'base-targets/wms-sdk'],
                                       ['base-targets/test-prebuilt', 'base-targets/wms', 'base-targets/wms-sdk']))
-                self.failUnlessEqual(xtarget.list_profiles(version=True),
+                self.assertEqual(xtarget.list_profiles(version=True),
                                      (['base-targets/test-prebuilt-1.0','base-targets/wms-1.3.15.0',
                                        'base-targets/wms-sdk-1.3.15.0',
                                        'base-targets/wms-sdk-1.3.15.1', 'base-targets/wms-sdk-1.3.15.2',
@@ -74,24 +80,22 @@ class xtargetBuilderTester(unittest.TestCase):
                 del xtarget
 
         def testListTargets(self):
-                self.initEnv()
-                self.__cleanTmpTargets()
                 xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
                 xtarget.create('=base-targets/wms-1.3.15.0', 'mdboxa')
                 xtarget.create('=base-targets/wms-sdk-1.3.15.0', 'mdboxa')
-                self.failUnlessEqual(xtarget.list_targets(),
+                self.assertEqual(xtarget.list_targets(),
                                      [('wms-1.3.15.0', 'base-targets/wms-1.3.15.0', 'mdboxa', {u'redist': u'1', u'prebuilt': u'0'}),
                                       ('wms-sdk-1.3.15.0', 'base-targets/wms-sdk-1.3.15.0', 'mdboxa', {'redist': '1', 'prebuilt': '0'})])
                 xtarget.delete('wms-1.3.15.0')
-                self.failUnlessEqual(xtarget.list_targets(),
+                self.assertEqual(xtarget.list_targets(),
                                      [('wms-sdk-1.3.15.0', 'base-targets/wms-sdk-1.3.15.0', 'mdboxa', {'redist': '1', 'prebuilt': '0'})])
                 xtarget.delete('wms-sdk-1.3.15.0')
-                self.failUnlessEqual(xtarget.list_targets(),
+                self.assertEqual(xtarget.list_targets(),
                                      [])
 
         def testCreateTarget(self):
-                self.initEnv()
-                self.__cleanTmpTargets()
+                targets = self.path + TMP_TARGETS
+                self.assertEqual(os.listdir(targets), [])
                 xt = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
                 try:
                         xt.create('pouet')
@@ -99,33 +103,44 @@ class xtargetBuilderTester(unittest.TestCase):
                 except b.XTargetError, e:
                         if not str(e).startswith('Can\'t find any correct'):
                                 raise e
+
+                self.assertEqual(os.listdir(targets), [])
+
                 try:
                         xt.create('wms-sdk', 'dumbarch')
                         self.fail('An exception should have been raised')
                 except b.XTargetError, e:
                         if not str(e).startswith('Architecture not supported'):
                                 raise e
+
+                self.assertEqual(os.listdir(targets), [])
+
                 try:
                         xt.create('wms')
                         self.fail('An exception should have been raised')
                 except b.XTargetError, e:
                         if not str(e).startswith('One of the following archit'):
                                 raise e
+
+                self.assertEqual(os.listdir(targets), [])
+
                 xt.create('wms', 'mdboxa')
+                self.assertEqual(os.listdir(targets), ['wms-1.3.15.0'])
                 xt.create('wms-sdk')
+                self.assertEqual(set(os.listdir(targets)), set(['wms-sdk-1.3.15.3', 'wms-1.3.15.0']))
                 xt.create('=base-targets/wms-1.3.15.0', 'mdboxa')
+                self.assertEqual(set(os.listdir(targets)), set(['wms-sdk-1.3.15.3', 'wms-1.3.15.0']))
                 xt = b.XTargetBuilder(arch='~mdboxa', config=self.path + '/xtarget.cfg')
                 xt.create('=base-targets/wms-sdk-1.3.15.2', '~mdboxa')
+                self.assertEqual(set(os.listdir(targets)), set(['wms-sdk-1.3.15.3', 'wms-sdk-1.3.15.2', 'wms-1.3.15.0']))
 
         def testSetTarget(self):
-                self.initEnv()
-                self.__cleanTmpTargets()
                 os.makedirs(self.path + TMP_TARGETS + '/test_target')
                 xt = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
                 try:
                         # Try to set a target somewhere else than /usr/targets
                         xt.set(self.path + TMP_TARGETS + '/test_target')
-                        self.failUnlessEqual(xt.get_current(), self.path + TMP_TARGETS + '/test_target')
+                        self.assertEqual(xt.get_current(), self.path + TMP_TARGETS + '/test_target')
                 except b.XTargetError, e:
                         self.fail(str(e))
                 try:
@@ -134,9 +149,9 @@ class xtargetBuilderTester(unittest.TestCase):
                                 os.makedirs('/tmp/tmp_target')
                         xt.set('/tmp/tmp_target')
                         curr = xt.get_current()
-                        self.failUnlessEqual(curr, '/tmp/tmp_target')
+                        self.assertEqual(curr, '/tmp/tmp_target')
                         curr_lnk = get_current_link(xt.cfg)
-                        self.failUnless(os.readlink(curr_lnk).startswith('../'), '%s should start with ../' % curr)
+                        self.assertTrue(os.readlink(curr_lnk).startswith('../'), '%s should start with ../' % curr)
                 except b.XTargetError, e:
                         self.fail(str(e))
                 try:
