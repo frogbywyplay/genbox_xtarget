@@ -76,6 +76,8 @@ class XTargetBuilder(object):
                 fd_in.write('PORTDIR_OVERLAY=""\n')
                 fd_in.write('ACCEPT_KEYWORDS="-* %s"\n' % self.__get_keywords(arch))
                 fd_in.write('FEATURES="-strict"\n')
+                if exists(self.cfg['ov_config']):
+                        fd_in.write(''.join(open(self.cfg['ov_config']).readlines()))
                 fd_in.close()
 
                 self.xportage = XPortage(root=self.cfg['tmpdir'])

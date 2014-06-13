@@ -51,8 +51,8 @@ class xtargetBuilderTester(unittest.TestCase):
 
         def cleanup_dirs(self):
                 '''Erase all temporary dirs and files if any.'''
-                os.system('rm -rf %s' % (self.path + TMP_TARGETS))
-                os.system('rm -f %s' % (self.path + '/xtarget.cfg'))
+                self.assertEqual(os.system('rm -rf %s' % (self.path + TMP_TARGETS)), 0)
+                self.assertEqual(os.system('rm -f %s' % (self.path + '/xtarget.cfg')), 0)
 
         def tearDown(self):
                 self.cleanup_dirs()
