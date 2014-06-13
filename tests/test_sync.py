@@ -52,7 +52,7 @@ class XTargetSyncTester(unittest.TestCase):
                 cfg.write('branch = master\n')
                 cfg.close()
                 os.makedirs(TMP_TARGETS)
-
+                # Creating git repository - a copy of OV_TARGETS.
                 self.assertEqual(os.system('cp -a %s %s' % (OV_TARGETS, GIT_DIR)), 0)
                 self.assertEqual(os.system('cd %s; git init; git add .; git commit -m init' % GIT_DIR), 0)
 
@@ -61,7 +61,9 @@ class XTargetSyncTester(unittest.TestCase):
                 self.assertEqual(os.system('rm -rf %s' % (TMP_TARGETS)), 0)
                 self.assertEqual(os.system('rm -rf %s' % (GIT_DIR)), 0)
                 self.assertEqual(os.system('rm -rf %s' % (NEW_PORT_DIR)), 0)
+                self.assertEqual(os.system('rm -rf %s' % (PATH + '/one')), 0)
                 self.assertEqual(os.system('rm -f %s' % (PATH + '/xtarget.cfg')), 0)
+                self.assertEqual(os.system('rm -f %s' % (PATH + '/xtarget_ov.config')), 0)
 
         def tearDown(self):
                 self.cleanup_dirs()
@@ -71,6 +73,23 @@ class XTargetSyncTester(unittest.TestCase):
                                 stdout = sys.stdout, stderr = sys.stderr)
                 xtarget.sync()
                 self.assertEqual(os.system('diff -r --exclude=.git %s %s'% (NEW_PORT_DIR, GIT_DIR)), 0)
+
+        def testSyncWithOV(self):
+                '''Syncing main repository + one additional from overlay config.'''
+                # Adding overlay config file to xtarget.cfg and populate it with values.
+                self.assertEqual(os.system('echo ov_config = %s >> %s' %
+                        (PATH + '/xtarget_ov.config', PATH + '/xtarget.cfg')), 0)
+                cfg = open(PATH + '/xtarget_ov.config', 'w')
+                cfg.write('PORTDIR_OVERLAY="%s"\n' % (PATH + '/one'))
+                cfg.write('PORTAGE_ONE_PROTO="git"\n')
+                cfg.write('PORTAGE_ONE_URI="%s"\n' % GIT_DIR)
+                cfg.write('PORTAGE_ONE_BRANCH="master"\n')
+                cfg.close()
+                xtarget = b.XTargetBuilder(config=PATH + '/xtarget.cfg', sync=True,
+                                stdout = sys.stdout, stderr = sys.stderr)
+                xtarget.sync()
+                self.assertEqual(os.system('diff -r --exclude=.git %s %s'% (NEW_PORT_DIR, GIT_DIR)), 0)
+                self.assertEqual(os.system('diff -r --exclude=.git %s %s'% (PATH + '/one', GIT_DIR)), 0)
 
 if __name__ == "__main__":
         unittest.main()

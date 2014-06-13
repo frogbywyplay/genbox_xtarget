@@ -20,6 +20,7 @@
 import os
 
 XTARGET_SYS_CFG = '/etc/xtarget.cfg'
+XTARGET_SYS_OV_CFG = '/etc/xtarget_ov.cfg'
 XTARGET_USER_CFG = '.xtarget'
 
 GENBOX_PROFILE =       "/usr/share/genbox-config/profiles/ov-targets"

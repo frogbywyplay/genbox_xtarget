@@ -40,6 +40,7 @@ def load_config(config_files=None):
         config['ov_proto'] = cfg.get('consts', 'proto', None)
         config['ov_rev'] = cfg.get('consts', 'revision', None)
         config['ov_branch'] = cfg.get('consts', 'branch', None)
+        config['ov_config'] = cfg.get('consts', 'ov_config', XTARGET_SYS_OV_CFG)
 
         config['create_autocurrent'] = cfg.getboolean('create', 'autocurrent', False)
         config['create_autosync'] = cfg.getboolean('create', 'autosync', False)
