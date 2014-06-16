@@ -115,39 +115,6 @@ class XTargetBuilder(object):
                     except XPortageError, e:
                         raise XTargetError(str(e))
 
-        def list_profiles(self, pkg_atom=None, version=False):
-                """ List profiles.
-                Returns a tuple of all targets and avaiable targets. """
-                if pkg_atom:
-                        version = True
-
-                if not self.xportage.portdb:
-                        self.xportage.create_trees()
-                if pkg_atom is None:
-                        if version:
-                                target_list = self.xportage.portdb.cpv_all()
-                        else:
-                                target_list = self.xportage.portdb.cp_all()
-                else:
-                        try:
-                                target_list = self.xportage.match_all(pkg_atom)
-                        except XPortageError, e:
-                                raise XTargetError(str(e))
-                if not target_list:
-                        return [], []
-                target_list.sort()
-                target_list_visible = []
-                for target in target_list:
-                        atom = target
-                        if version:
-                                atom = "=%s" % atom
-                        try:
-                                if self.xportage.best_match(atom):
-                                        target_list_visible.append(target)
-                        except XPortageError, e:
-                                raise XTargetError(str(e))
-                return target_list, target_list_visible
-
         def list_targets(self):
                 """ List installed targets.
                 Looks for targets in /usr/targets (TARGETS_DIR) """
