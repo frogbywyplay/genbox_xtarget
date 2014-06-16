@@ -172,14 +172,22 @@ class XTargetCmdline(XTargetBuilder):
                 info("Target's overlays synced")
 
         def info(self):
+                def report_path(m, v):
+                        if v in self.cfg:
+                                f = self.cfg.get(v)
+                                print m, f,
+                                print " (exists)" if os.path.exists(f) else " (doesn't exist)"
+                        else:
+                                print m, 'undefined'
                 vinfo('Retrieving information for xtarget')
-                print "Targets overlay:", self.cfg.get('ov_path', 'undefined')
-                print "Targets directory:", self.cfg.get('targets_dir', 'undefined')
+                report_path("Targets overlay:", 'ov_path')
+                report_path("Targets directory:", 'targets_dir')
                 print "Sync protocol:", self.cfg.get('ov_proto', 'undefined')
                 print "Sync URI:", self.cfg.get('ov_uri', 'undefined')
                 print "Sync branch:", self.cfg.get('ov_branch', 'undefined')
                 print "Sync revision:", self.cfg.get('ov_rev', 'undefined')
-                print "Targets release file:", self.cfg.get('release_file', 'undefined')
+                report_path("Targets release file:", 'release_file')
+                report_path("Targets overlay file:", 'ov_config')
 
         def get(self, key):
                 try:
