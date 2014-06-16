@@ -217,7 +217,7 @@ class XTargetBuilder(object):
                 else:
                         dest_dir = self.cfg['targets_dir'] + '/' + dir + "/root"
 
-                if not os.path.exists(dest_dir):
+                if not exists(dest_dir):
                         os.makedirs(dest_dir)
                 elif not os.path.isdir(dest_dir):
                         raise XTargetError("%s is not a directory" % dest_dir)
@@ -231,7 +231,7 @@ class XTargetBuilder(object):
                 self.local_env["CONFIG_PROTECT"] = "-*"
                 # create distfiles if needed
                 if distfiles_dir is not None:
-                        if not os.path.exists(distfiles_dir):
+                        if not exists(distfiles_dir):
                                 os.makedirs(distfiles_dir)
                         elif not os.path.isdir(distfiles_dir):
                                 raise XTargetError("%s is not a directory" % distfiles_dir)
@@ -245,7 +245,7 @@ class XTargetBuilder(object):
                 target_config = self.xportage.parse_config(root=dest_dir, config_root=dest_dir, store=False)
                 build_dir = target_config['PORTAGE_TMPDIR']
                 if build_dir is not None:
-                        if not os.path.exists(build_dir):
+                        if not exists(build_dir):
                                 os.makedirs(build_dir)
                         elif not os.path.isdir(build_dir):
                                 raise XTargetError("Target PORTAGE_TMPDIR (%s) is not a directory" % build_dir)
@@ -348,9 +348,9 @@ class XTargetBuilder(object):
                 return rel[key]
         
         def _mk_tmpdir(self):
-                if not os.path.exists(self.cfg['tmpdir'] + "/etc"):
+                if not exists(self.cfg['tmpdir'] + "/etc"):
                         os.makedirs(self.cfg['tmpdir'] + "/etc")
-                if not os.path.exists(self.cfg['tmpdir'] + "/etc/make.profile"):
+                if not exists(self.cfg['tmpdir'] + "/etc/make.profile"):
                         os.symlink(GENBOX_PROFILE, self.cfg['tmpdir'] + "/etc/make.profile")
         
         def __get_keywords(self, arch):
