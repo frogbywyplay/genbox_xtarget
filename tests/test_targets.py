@@ -59,14 +59,59 @@ class xtargetBuilderTester(unittest.TestCase):
         def tearDown(self):
                 self.cleanup_dirs()
 
-        def testListProfiles(self):
+        def testListProfiles_wms(self):
                 xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
                 self.assertEqual(tuple(xtarget.list_profiles_ng('wms')),
                                      (('base-targets/wms-1.3.15.0', True),))
-                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2')),
-                                     (('base-targets/wms-sdk-1.3.15.2', True), ('base-targets/wms-sdk-1.3.15.3', True)))
-                
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', filter=True)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', version=True)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', version=True, filter=True)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', multi=False)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', filter=True, multi=False)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', version=True, multi=False)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms', version=True, filter=True, multi=False)),
+                                     (('base-targets/wms-1.3.15.0', True),))
+
+        def testListProfiles_wms_gr_eq(self):
+                xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2')), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', filter=True)), (
+                                ('base-targets/wms-sdk-1.3.15.2', False),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', version=True)), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', version=True, filter=True)), (
+                                ('base-targets/wms-sdk-1.3.15.2', False),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', multi=False)), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', filter=True, multi=False)), (
+                                ('base-targets/wms-sdk-1.3.15.2', False),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', version=True, multi=False)), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', version=True, filter=True, multi=False)), (
+                                ('base-targets/wms-sdk-1.3.15.2', False),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+
+        def testListProfiles_no_atom(self):
+                xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')
                 self.assertEqual(tuple(xtarget.list_profiles_ng()), (
+                                        ('base-targets/test-prebuilt', True),
+                                        ('base-targets/wms', True),
+                                        ('base-targets/wms-sdk', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(filter=True)), (
                                         ('base-targets/test-prebuilt', True),
                                         ('base-targets/wms', True),
                                         ('base-targets/wms-sdk', True)))
@@ -76,6 +121,35 @@ class xtargetBuilderTester(unittest.TestCase):
                                 ('base-targets/wms-sdk-1.3.15.0', True),
                                 ('base-targets/wms-sdk-1.3.15.1', True),
                                 ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(version=True, filter=True)), (
+                                ('base-targets/test-prebuilt-1.0', True),
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.1', False),
+                                ('base-targets/wms-sdk-1.3.15.2', False),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(multi=False)), (
+                                        ('base-targets/test-prebuilt', True),
+                                        ('base-targets/wms', True),
+                                        ('base-targets/wms-sdk', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(filter=True, multi=False)), (
+                                        ('base-targets/test-prebuilt', True),
+                                        ('base-targets/wms', True),
+                                        ('base-targets/wms-sdk', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(version=True, multi=False)), (
+                                ('base-targets/test-prebuilt-1.0', True),
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.1', True),
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(version=True, filter=True, multi=False)), (
+                                ('base-targets/test-prebuilt-1.0', True),
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.1', False),
+                                ('base-targets/wms-sdk-1.3.15.2', False),
                                 ('base-targets/wms-sdk-1.3.15.3', True)))
                 del xtarget
 
@@ -121,6 +195,70 @@ class xtargetBuilderTester(unittest.TestCase):
                                 ('base-targets/wms-sdk-1.3.15.1', True),
                                 ('base-targets/wms-sdk-1.3.15.2', True),
                                 ('base-targets/wms-sdk-1.3.15.3', True)))
+
+        def testListProfilesWithOV_wms_ambiguous(self):
+                # Adding overlay config file to xtarget.cfg and populate it with values.
+                self.assertEqual(os.system('echo ov_config = %s >> %s' %
+                        (self.path + '/xtarget_ov.config', self.path + '/xtarget.cfg')), 0)
+                cfg = open(self.path + '/xtarget_ov.config', 'w')
+                cfg.write('PORTDIR_OVERLAY="%s"\n' % (self.path + '/one'))
+                cfg.write('PORTAGE_ONE_PROTO="git"\n')
+                cfg.write('PORTAGE_ONE_URI="%s"\n' % self.path + '/git_one') # it will not be used
+                cfg.write('PORTAGE_ONE_BRANCH="master"\n')
+                cfg.close()
+                # Adding only one package esab-targets/wms and one ebuild with '.8' at the end
+                os.makedirs(self.path + '/one/esab-targets/wms')
+                self.assertEqual(os.system('cp %s %s' %
+                        (self.path + '/ov_targets/base-targets/wms/wms-1.3.15.0.ebuild',
+                        self.path + '/one/esab-targets/wms/wms-1.3.15.8.ebuild')), 0)
+                self.assertEqual(os.system('echo "EBUILD wms-1.3.15.8.ebuild '
+                        '1140 RMD160 f81bc8c550963f031e3b6b24fbe0559105a10d8e '
+                        'SHA1 fc3810880495bdaa69cbd12098ca43400719cd9c '
+                        'SHA256 54f9cc292e720e88ca6bc22a00d2142da48e38d00f107e9f5942a7be0ac01bd8" >> %s' %
+                                self.path + '/one/esab-targets/wms/Manifest'), 0)
+                xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg', sync=True,
+                                stdout = sys.stdout, stderr = sys.stderr)
+                self.assertEqual(tuple(xtarget.list_profiles_ng('wms')), (
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('esab-targets/wms-1.3.15.8', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2')), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng()), (
+                                ('base-targets/test-prebuilt', True),
+                                ('base-targets/wms', True),
+                                ('base-targets/wms-sdk', True),
+                                ('esab-targets/wms', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(version=True)), (
+                                ('base-targets/test-prebuilt-1.0', True),
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.1', True),
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True),
+                                ('esab-targets/wms-1.3.15.8', True)))
+
+                # XTargetError: The short target ebuild: wms is ambiguous.
+                # Please specify one the following fully-qualified target ebuild instead:
+                # base-targets/wms esab-targets/wms
+                self.assertRaises(b.XTargetError, tuple, xtarget.list_profiles_ng('wms', multi=False))
+
+                self.assertEqual(tuple(xtarget.list_profiles_ng('>=wms-sdk-1.3.15.2', multi=False)), (
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(multi=False)), (
+                                ('base-targets/test-prebuilt', True),
+                                ('base-targets/wms', True),
+                                ('base-targets/wms-sdk', True),
+                                ('esab-targets/wms', True)))
+                self.assertEqual(tuple(xtarget.list_profiles_ng(version=True, multi=False)), (
+                                ('base-targets/test-prebuilt-1.0', True),
+                                ('base-targets/wms-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.0', True),
+                                ('base-targets/wms-sdk-1.3.15.1', True),
+                                ('base-targets/wms-sdk-1.3.15.2', True),
+                                ('base-targets/wms-sdk-1.3.15.3', True),
+                                ('esab-targets/wms-1.3.15.8', True)))
 
         def testListTargets(self):
                 xtarget = b.XTargetBuilder(config=self.path + '/xtarget.cfg')

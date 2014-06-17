@@ -82,7 +82,7 @@ class XTargetBuilder(object):
 
                 self.xportage = XPortage(root=self.cfg['tmpdir'])
 
-        def list_profiles_ng(self, pkg_atom=None, version=False, filter=None):
+        def list_profiles_ng(self, pkg_atom=None, version=False, filter=None, multi=True):
                 """ List profiles.
                 Returns a tuple of all targets and avaiable targets. """
                 if pkg_atom:
@@ -97,7 +97,7 @@ class XTargetBuilder(object):
                                 target_list = self.xportage.portdb.cp_all()
                 else:
                         try:
-                                target_list = self.xportage.match_all(pkg_atom, multi=True)
+                                target_list = self.xportage.match_all(pkg_atom, multi=multi)
                         except XPortageError, e:
                                 raise XTargetError(str(e))
 
