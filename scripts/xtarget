@@ -137,7 +137,7 @@ if __name__ == "__main__":
                 tb.delete(args[0])
 	elif action == "sync":
 		tb.sync()
-        elif action == "sync_overlay":
+        elif action == "sync-target-overlays":
                 tb.sync_overlay()
 	elif action == "info":
 		tb.info()
