@@ -23,7 +23,7 @@ from xportage import XPortage, XPortageError
 import exceptions, os, re
 from os.path import realpath, isdir, exists
 
-from subprocess import Popen
+from subprocess import Popen, PIPE
 from consts import *
 from release import XTargetReleaseParser
 from config import load_config
@@ -36,8 +36,18 @@ def key(k):
 
 class XTargetError(exceptions.Exception):
         """ Error class for XtargetBuilder. """
-        def __init__(self, error=None):
+        def __init__(self, error=None, stdout=None, stderr=None):
                 self.error = error
+                self.stdout = stdout
+                self.stderr = stderr
+                self.log = ""
+                if self.stderr:
+                        self.log += "\n%s"%self.stderr.rstrip()
+                if self.stdout:
+                        self.log += "\n%s"%self.stdout.rstrip()
+                if self.log:
+                        self.log = "Error log: %s"%self.log
+
         def __str__(self):
                 if self.error is not None:
                         return self.error
@@ -46,22 +56,22 @@ class XTargetError(exceptions.Exception):
 
 class XTargetBuilder(object):
         """ A class to manage targets.
-        It uses XPortage to parse the \"targets\" profile """ 
+        It uses XPortage to parse the \"targets\" profile """
         def __init__(self, arch=None, sync=False, stdout=None, stderr=None, config=None):
                 self.local_env = os.environ.copy()
                 if stdout:
                         self.stdout = stdout
                 else:
-                        self.stdout = open("/dev/null", "w")
+                        self.stdout = PIPE
                 if stderr:
                         self.stderr = stderr
                 else:
-                        self.stderr = open("/dev/null", "w")
+                        self.stderr = PIPE
 
                 self.cfg = load_config(config)
                 if not sync and not isdir(self.cfg['ov_path']):
                         raise XTargetError("Can't find targets portage %s" % self.cfg['ov_path'])
-                
+
                 self.arch_list = []
                 if not sync and exists(self.cfg['ov_path'] + "/profiles/arch.list"):
                         fd_in = open(self.cfg['ov_path'] + "/profiles/arch.list", 'r')
@@ -178,14 +188,14 @@ class XTargetBuilder(object):
 
                 try:
                         # find the correct package name
-                	if not self.xportage.trees:
-                        	self.xportage.create_trees()
+                        if not self.xportage.trees:
+                                self.xportage.create_trees()
                         target_pkg = self.xportage.best_match(pkg_atom)
                         if target_pkg is None:
                                 raise XTargetError("Can't find any correct target for %s" % pkg_atom)
 
                         # get keywords for this package
-		        target_kwd = self.xportage.portdb.aux_get(target_pkg, ["KEYWORDS"])[0].split()
+                        target_kwd = self.xportage.portdb.aux_get(target_pkg, ["KEYWORDS"])[0].split()
                 except XPortageError, e:
                         raise XTargetError(str(e))
 
@@ -235,12 +245,14 @@ class XTargetBuilder(object):
                                 os.makedirs(distfiles_dir)
                         elif not os.path.isdir(distfiles_dir):
                                 raise XTargetError("%s is not a directory" % distfiles_dir)
-                ret = Popen(["emerge", "=" + target_pkg], bufsize=-1,
-                            stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env).wait()
+                cmd = Popen(["emerge", "=" + target_pkg], bufsize=-1,
+                                stdout=self.stdout, stderr=self.stderr,
+                                shell=False, cwd=None, env=self.local_env)
+                (stdout, stderr) = cmd.communicate()
+                ret = cmd.returncode
 
                 if ret != 0:
-                        raise XTargetError("Merging the target profile failed")
+                        raise XTargetError("Merging the target profile failed", stdout, stderr)
                 # create build directory if needed
                 target_config = self.xportage.parse_config(root=dest_dir, config_root=dest_dir, store=False)
                 build_dir = target_config['PORTAGE_TMPDIR']
@@ -271,9 +283,14 @@ class XTargetBuilder(object):
                                 raise XTargetError("Some filesystems are mounted in the target")
                 fd_in.close()
 
-                ret = Popen(["rm", "-rf", target_dir], bufsize=-1,
+                cmd = Popen(["rm", "-rf", target_dir], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env).wait()
+                            cwd=None, env=self.local_env)
+                (stdout, stderr) = cmd.communicate()
+                ret = cmd.returncode
+                if ret != 0:
+                        raise XTargetError("Deleting target failed", stdout, stderr)
+
                 return ret
 
         def sync(self):
@@ -291,12 +308,13 @@ class XTargetBuilder(object):
                 # This is not a target update, skip the conf checking
                 self.local_env["NO_TARGET_UPDATE"] = "True"
 
-                ret = Popen(["emerge", "--sync"], bufsize=-1,
+                cmd = Popen(["emerge", "--sync"], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env).wait()
-
+                            cwd=None, env=self.local_env)
+                (stdout, stderr) = cmd.communicate()
+                ret = cmd.returncode
                 if ret != 0:
-                        raise XTargetError("Syncing overlay failed")
+                        raise XTargetError("Syncing overlay failed", stdout, stderr)
 
         def sync_overlay(self, dir=None):
                 """Sync target's overlays"""
@@ -312,12 +330,15 @@ class XTargetBuilder(object):
                         for ov in rel['overlay']:
                                 var = "PORTAGE_%s_REVISION" % ov['name'].upper()
                                 self.local_env[var] = ov['version']
-                
-                ret = Popen(["emerge", "--sync"], bufsize=-1,
+
+                cmd = Popen(["emerge", "--sync"], bufsize=-1,
                         stdout=self.stdout, stderr=self.stderr, shell=False,
-                        cwd=None, env=self.local_env).wait()
+                        cwd=None, env=self.local_env)
+                (stdout, stderr) = cmd.communicate()
+                ret = cmd.returncode
+
                 if ret != 0:
-                        raise XTargetError("Syncing overlays of target failed")
+                        raise XTargetError("Syncing overlays of target failed", stdout, stderr)
 
 
 		rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
@@ -332,12 +353,14 @@ class XTargetBuilder(object):
 
                 if not self.cfg['create_libc']:
                         return
-		ret2 = Popen(["emerge", "-bug", "virtual/libc"], bufsize=-1,
+		cmd2 = Popen(["emerge", "-bug", "virtual/libc"], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env).wait()
+                            cwd=None, env=self.local_env)
+                (stdout2, stderr2) = cmd2.communicate()
+                ret2 = cmd2.returncode
 
                 if ret2 != 0:
-                        raise XTargetError("Merging libc failed")
+                        raise XTargetError("Merging libc failed", stdout2, stderr2)
 
         def get(self, key):
                 rel = XTargetReleaseParser().get(self.get_current(), self.cfg['release_file'])

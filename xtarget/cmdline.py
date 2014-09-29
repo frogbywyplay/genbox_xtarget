@@ -20,7 +20,7 @@
 
 import os, re, sys
 
-from xutils import color, die, warn, info, vinfo, is_verbose, userquery
+from xutils import color, die, error, warn, info, vinfo, is_verbose, userquery
 from builder import XTargetBuilder, XTargetError
 from consts import *
 from current import get_current_target
@@ -89,6 +89,8 @@ class XTargetCmdline(XTargetBuilder):
                         else:
                                 target_name = pkg_atom
                 except XTargetError, e:
+                        if e.log:
+                                error(e.log)
                         die(str(e))
 
                 info("Target %s built in %s" % (target_name, target_dir))
@@ -152,6 +154,8 @@ class XTargetCmdline(XTargetBuilder):
                 try:
                         XTargetBuilder.delete(self, target_dir)
                 except XTargetError, e:
+                        if e.log:
+                                error(e.log)
                         die(str(e))
                 info("Target %s deleted" % target_dir)
 
@@ -160,6 +164,8 @@ class XTargetCmdline(XTargetBuilder):
                 try:
                         XTargetBuilder.sync(self)
                 except XTargetError, e:
+                        if e.log:
+                                error(e.log)
                         die(str(e))
                 info("Target overlay (%s) synced" % TARGETS_PORTDIR)
 
@@ -168,6 +174,8 @@ class XTargetCmdline(XTargetBuilder):
                 try:
                         XTargetBuilder.sync_overlay(self, dir)
                 except XTargetError, e:
+                        if e.log:
+                                error(e.log)
                         die(str(e))
                 info("Target's overlays synced")
 
