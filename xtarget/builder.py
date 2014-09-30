@@ -190,7 +190,10 @@ class XTargetBuilder(object):
                         # find the correct package name
                         if not self.xportage.trees:
                                 self.xportage.create_trees()
-                        target_pkg = self.xportage.best_match(pkg_atom)
+                        try:
+                                target_pkg = self.xportage.best_match(pkg_atom)
+                        except ValueError, e:
+                                raise XTargetError("You must choose a profile in: %s"%e.args)
                         if target_pkg is None:
                                 raise XTargetError("Can't find any correct target for %s" % pkg_atom)
 
