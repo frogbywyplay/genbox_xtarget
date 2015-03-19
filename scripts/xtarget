@@ -108,11 +108,10 @@ if __name__ == "__main__":
                 verbose(True)
 
         action = values.action
-	if action == "sync" or action == "info":
-		tb = XTargetCmdline(arch,
-				    sync=True)
-	else:
-		tb = XTargetCmdline(arch)
+        if action == "sync" or action == "info":
+                tb = XTargetCmdline(arch, sync=True)
+        else:
+                tb = XTargetCmdline(arch)
 
         if action == "list-profiles":
                 if args and len(args) >= 1:
@@ -135,12 +134,12 @@ if __name__ == "__main__":
                 if not (args and len(args) == 1):
                         parser.error("a target name is required")
                 tb.delete(args[0])
-	elif action == "sync":
-		tb.sync()
+        elif action == "sync":
+                tb.sync()
         elif action == "sync-target-overlays":
                 tb.sync_overlay()
-	elif action == "info":
-		tb.info()
+        elif action == "info":
+                tb.info()
         elif action == "get-version":
                 tb.get("version")
         elif action == "get-arch":
