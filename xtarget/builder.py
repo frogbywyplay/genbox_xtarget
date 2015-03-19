@@ -222,8 +222,8 @@ class XTargetBuilder(object):
 
                 if dir is None:
                         target_name = target_pkg.split("/", 1)
-			if len(target_name) != 2:
-				raise XTargetError('Wrong target name %s' % target_name)
+                        if len(target_name) != 2:
+                            raise XTargetError('Wrong target name %s' % target_name)
                         dest_dir = self.cfg['targets_dir'] + '/' + target_name[1] + "/root"
                 elif '/' in dir:
                         dest_dir = os.path.abspath(dir) + "/root"
