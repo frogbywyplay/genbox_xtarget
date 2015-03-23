@@ -78,8 +78,11 @@ class XTargetBuilder(object):
                         for line in fd_in.readlines():
                                 self.arch_list.append(line)
                         fd_in.close()
-
                 self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
+                self._create_configroot(arch)
+                self.xportage = XPortage(root=self.cfg['tmpdir'])
+
+        def _create_configroot(self, arch):
                 self._mk_tmpdir()
                 fd_in = open(self.cfg['tmpdir'] + "/etc/make.conf", "w")
                 fd_in.write('PORTDIR="%s"\n' % self.cfg['ov_path'])
@@ -89,8 +92,6 @@ class XTargetBuilder(object):
                 if exists(self.cfg['ov_config']):
                         fd_in.write(''.join(open(self.cfg['ov_config']).readlines()))
                 fd_in.close()
-
-                self.xportage = XPortage(root=self.cfg['tmpdir'])
 
         def list_profiles_ng(self, pkg_atom=None, version=False, filter=None, multi=True):
                 """ List profiles.
@@ -220,11 +221,12 @@ class XTargetBuilder(object):
                 else:
                         arch = arch_list[0]
 
+                target_name = target_pkg.split("/", 1)
+                if len(target_name) != 2:
+                    raise XTargetError('Wrong target name %s' % target_name)
+                target_name = target_name[1]
                 if dir is None:
-                        target_name = target_pkg.split("/", 1)
-                        if len(target_name) != 2:
-                            raise XTargetError('Wrong target name %s' % target_name)
-                        dest_dir = self.cfg['targets_dir'] + '/' + target_name[1] + "/root"
+                        dest_dir = self.cfg['targets_dir'] + '/' + target_name + "/root"
                 elif '/' in dir:
                         dest_dir = os.path.abspath(dir) + "/root"
                 else:
@@ -235,11 +237,19 @@ class XTargetBuilder(object):
                 elif not os.path.isdir(dest_dir):
                         raise XTargetError("%s is not a directory" % dest_dir)
 
+                # keep distdir global, before updating tmpdir to a target specific dir
                 distfiles_dir = self.cfg['tmpdir'] + "/distfiles/" + arch
 
+                self.cfg['tmpdir'] = self.cfg["tmpdir"] + "/create_" + target_name
+                scm_storedir = self.cfg['tmpdir'] + "/distfiles/" + arch
+                self._create_configroot(arch)
+
+                self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
                 self.local_env["ROOT"] = dest_dir
                 self.local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
+                self.local_env["PORTAGE_ACTUAL_DISTDIR"] = "/tmp/pwaloseins"
                 self.local_env["DISTDIR"] = distfiles_dir
+                self.local_env["SCM_STOREDIR"] = scm_storedir
                 self.local_env["ARCH"] = arch 
                 self.local_env["CONFIG_PROTECT"] = "-*"
                 # create distfiles if needed
