@@ -247,7 +247,6 @@ class XTargetBuilder(object):
                 self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
                 self.local_env["ROOT"] = dest_dir
                 self.local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
-                self.local_env["PORTAGE_ACTUAL_DISTDIR"] = "/tmp/pwaloseins"
                 self.local_env["DISTDIR"] = distfiles_dir
                 self.local_env["SCM_STOREDIR"] = scm_storedir
                 self.local_env["ARCH"] = arch 
