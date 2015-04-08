@@ -22,6 +22,7 @@ from xportage import XPortage, XPortageError
 
 import exceptions, os, re
 from os.path import realpath, isdir, exists
+import shutil
 
 from subprocess import Popen, PIPE
 from consts import *
@@ -225,12 +226,14 @@ class XTargetBuilder(object):
                 if len(target_name) != 2:
                     raise XTargetError('Wrong target name %s' % target_name)
                 target_name = target_name[1]
+
                 if dir is None:
                         dest_dir = self.cfg['targets_dir'] + '/' + target_name + "/root"
                 elif '/' in dir:
                         dest_dir = os.path.abspath(dir) + "/root"
                 else:
                         dest_dir = self.cfg['targets_dir'] + '/' + dir + "/root"
+                        target_name = dir
 
                 if not exists(dest_dir):
                         os.makedirs(dest_dir)
@@ -249,7 +252,7 @@ class XTargetBuilder(object):
                 self.local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
                 self.local_env["DISTDIR"] = distfiles_dir
                 self.local_env["SCM_STOREDIR"] = scm_storedir
-                self.local_env["ARCH"] = arch 
+                self.local_env["ARCH"] = arch
                 self.local_env["CONFIG_PROTECT"] = "-*"
                 # create distfiles if needed
                 if distfiles_dir is not None:
@@ -273,6 +276,7 @@ class XTargetBuilder(object):
                                 os.makedirs(build_dir)
                         elif not os.path.isdir(build_dir):
                                 raise XTargetError("Target PORTAGE_TMPDIR (%s) is not a directory" % build_dir)
+                self._rm_tmpdir()
                 return dest_dir[:-5]
 
         def delete(self, dir):
@@ -381,13 +385,17 @@ class XTargetBuilder(object):
                 if not rel.has_key(key):
                         raise XTargetError("Key '%s' is not available in target release file" % key)
                 return rel[key]
-        
+
         def _mk_tmpdir(self):
                 if not exists(self.cfg['tmpdir'] + "/etc"):
                         os.makedirs(self.cfg['tmpdir'] + "/etc")
                 if not exists(self.cfg['tmpdir'] + "/etc/make.profile"):
                         os.symlink(GENBOX_PROFILE, self.cfg['tmpdir'] + "/etc/make.profile")
-        
+
+        def _rm_tmpdir(self):
+                if exists(self.cfg["tmpdir"]) and self.cfg["tmpdir"].startswith("/tmp"):
+                        shutil.rmtree(self.cfg["tmpdir"])
+
         def __get_keywords(self, arch):
                 if arch:
                         if len(arch) and arch[0] == '~':
