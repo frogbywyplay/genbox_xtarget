@@ -115,7 +115,8 @@ setup(
     scripts = [
                "scripts/xtarget",
               ],
-    data_files = [ ('/etc', [ "config/xtarget.cfg" ] ) ],
+    data_files = [ ('/etc', [ "config/xtarget.cfg" ] ),
+                   ('/etc/layman', [ 'config/xlayman.cfg' ] ) ],
     long_description = """xtarget tools for genbox""", 
     cmdclass = { 'test' : TestCommand }
 ) 

@@ -23,8 +23,14 @@ XTARGET_SYS_CFG = '/etc/xtarget.cfg'
 XTARGET_SYS_OV_CFG = '/etc/xtarget_ov.cfg'
 XTARGET_USER_CFG = '.xtarget'
 
-GENBOX_PROFILE =       "/usr/share/genbox-config/profiles/ov-targets"
-TARGETS_PORTDIR =      "/usr/local/portage/targets"
+TARGET_BASEDIR = '/usr/targets/current/'
+LAYMAN_BASEDIR = '/var/lib/layman/'
+
+XLAYMAN_BASEDIR = TARGET_BASEDIR + 'portage/'
+XLAYMAN_CFG = '/etc/layman/xlayman.cfg'
+
+GENBOX_PROFILE =       "/etc/portage/make.profile"
+TARGETS_PORTDIR =      LAYMAN_BASEDIR + "targets"
 TARGETS_DIR =          "/usr/targets/"
 TARGETS_RELEASE_FILE = "/etc/target-release"
 TARGETS_TMPDIR =       "/tmp/.xtarget"

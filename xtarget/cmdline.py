@@ -24,7 +24,7 @@ from xutils import color, die, error, warn, info, vinfo, is_verbose, userquery
 from builder import XTargetBuilder, XTargetError
 from consts import *
 from current import get_current_target
-from portage_versions import pkgsplit
+from portage.versions import pkgsplit
 from release import XTargetReleaseParser
 from config import load_config
 
@@ -98,11 +98,13 @@ class XTargetCmdline(XTargetBuilder):
                         # set new target to be current one
                         self.set(target_dir)
                         if self.cfg['create_autosync']:
+                                info("Target %s: sync overlay" % target_name)
                                 try:
                                         XTargetBuilder.sync_overlay(self, target_dir)
                                 except XTargetError, e:
                                         die(str(e))
-                                info("Overlays of target %s sync" % target_dir)
+                                info("Overlays of target %s synced" % target_dir)
+                                XTargetBuilder.create_builddir(self, target_dir)
 
         def list_targets(self):
                 tgt_list = XTargetBuilder.list_targets(self)

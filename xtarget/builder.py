@@ -23,6 +23,7 @@ from xportage import XPortage, XPortageError
 import exceptions, os, re
 from os.path import realpath, isdir, exists
 import shutil
+import stat
 
 from subprocess import Popen, PIPE
 from consts import *
@@ -85,7 +86,7 @@ class XTargetBuilder(object):
 
         def _create_configroot(self, arch):
                 self._mk_tmpdir()
-                fd_in = open(self.cfg['tmpdir'] + "/etc/make.conf", "w")
+                fd_in = open(self.cfg['tmpdir'] + "/etc/portage/make.conf", "w")
                 fd_in.write('PORTDIR="%s"\n' % self.cfg['ov_path'])
                 fd_in.write('PORTDIR_OVERLAY=""\n')
                 fd_in.write('ACCEPT_KEYWORDS="-* %s"\n' % self.__get_keywords(arch))
@@ -260,6 +261,9 @@ class XTargetBuilder(object):
                                 os.makedirs(distfiles_dir)
                         elif not os.path.isdir(distfiles_dir):
                                 raise XTargetError("%s is not a directory" % distfiles_dir)
+                         #setup permissions for DISTDIR
+                        os.chown(distfiles_dir, -1, 250) #distfiles is owned by portage (250) group
+                        os.chmod(distfiles_dir, stat.S_IRWXU|stat.S_IRWXG|stat.S_IROTH|stat.S_IXOTH) #distfiles has g+rw permissions
                 cmd = Popen(["emerge", "=" + target_pkg], bufsize=-1,
                                 stdout=self.stdout, stderr=self.stderr,
                                 shell=False, cwd=None, env=self.local_env)
@@ -268,7 +272,11 @@ class XTargetBuilder(object):
 
                 if ret != 0:
                         raise XTargetError("Merging the target profile failed", stdout, stderr)
+                return dest_dir[:-5]
+
+        def create_builddir(self, dir):
                 # create build directory if needed
+                dest_dir = dir + '/root'
                 target_config = self.xportage.parse_config(root=dest_dir, config_root=dest_dir, store=False)
                 build_dir = target_config['PORTAGE_TMPDIR']
                 if build_dir is not None:
@@ -277,7 +285,6 @@ class XTargetBuilder(object):
                         elif not os.path.isdir(build_dir):
                                 raise XTargetError("Target PORTAGE_TMPDIR (%s) is not a directory" % build_dir)
                 self._rm_tmpdir()
-                return dest_dir[:-5]
 
         def delete(self, dir):
                 """ Delete a target.
@@ -310,7 +317,7 @@ class XTargetBuilder(object):
                 return ret
 
         def sync(self):
-                """Sync /usr/local/portage/targets overlay"""
+                """Sync /var/lib/layman/targets overlay"""
                 path = os.path.basename(self.cfg['ov_path']).upper()
                 for var in ['PROTO', 'URI', 'REVISION', 'BRANCH']:
                         environ_var = 'PORTAGE_%s_%s' % (path, var)
@@ -319,12 +326,10 @@ class XTargetBuilder(object):
                            self.cfg.get(cfg_var, None):
                                 self.local_env[environ_var] = self.cfg[cfg_var]
 
-                # Required to avoid "please update portage" warning
-                self.local_env["ROOT"] = self.cfg['tmpdir'] 
                 # This is not a target update, skip the conf checking
                 self.local_env["NO_TARGET_UPDATE"] = "True"
 
-                cmd = Popen(["emerge", "--sync"], bufsize=-1,
+                cmd = Popen(["layman", "--sync", "targets"], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
                             cwd=None, env=self.local_env)
                 (stdout, stderr) = cmd.communicate()
@@ -337,28 +342,28 @@ class XTargetBuilder(object):
                 if not dir:
                         dir = get_current_target(config=self.cfg)
 
-                self.local_env["ROOT"] = dir + "/root/"
-                self.local_env["PORTAGE_CONFIGROOT"] = dir + "/root/"
+                self.local_env["ROOT"] = '/' #bec. layman will search for ${ROOT}/usr/bin/hg
+                self.local_env["PORTAGE_CONFIGROOT"] = TARGET_BASEDIR + "root/"
                 self.local_env["NO_TARGET_UPDATE"] = "True"
+
+                # copy layman config file for cross-build into SYSROOT/etc/
+                from shutil import copy
+                copy(XLAYMAN_CFG,TARGET_BASEDIR + 'root/etc/')
 
                 rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
                 if rel and rel.has_key('overlay'):
                         for ov in rel['overlay']:
-                                var = "PORTAGE_%s_REVISION" % ov['name'].upper()
-                                self.local_env[var] = ov['version']
+                                action = '--sync' if os.path.isdir(XLAYMAN_BASEDIR + ov['name']) else '--add'
+                                ret = Popen(['layman', '--fetch', '--config=' + XLAYMAN_CFG,
+                                        action, ov['name'], '--revision', ov['version']], bufsize=-1,
+                                        stdout=self.stdout, stderr=self.stderr, shell=False,
+                                        cwd=None, env=self.local_env).wait()
+                                if ret != 0:
+                                        raise XTargetError("Syncing overlays of target failed")
 
-                cmd = Popen(["emerge", "--sync"], bufsize=-1,
-                        stdout=self.stdout, stderr=self.stderr, shell=False,
-                        cwd=None, env=self.local_env)
-                (stdout, stderr) = cmd.communicate()
-                ret = cmd.returncode
-
-                if ret != 0:
-                        raise XTargetError("Syncing overlays of target failed", stdout, stderr)
-
-
-		rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
-		xportage = XPortage(root=dir + "/root")
+                self.local_env["ROOT"] = dir + '/root/'
+                rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
+                xportage = XPortage(root=dir + "/root")
 
 		base_mirror = xportage.config['BASE_MIRROR']
 		if base_mirror:
@@ -366,6 +371,8 @@ class XTargetBuilder(object):
 
 		self.local_env["DISTDIR"] = dir + "/distfiles/"
 		self.local_env["PORTAGE_TMPDIR"] = dir + "/build/"
+                if not os.path.exists(self.local_env["PORTAGE_TMPDIR"]):
+                        os.makedirs(self.local_env["PORTAGE_TMPDIR"])
 
                 if not self.cfg['create_libc']:
                         return
@@ -389,8 +396,10 @@ class XTargetBuilder(object):
         def _mk_tmpdir(self):
                 if not exists(self.cfg['tmpdir'] + "/etc"):
                         os.makedirs(self.cfg['tmpdir'] + "/etc")
-                if not exists(self.cfg['tmpdir'] + "/etc/make.profile"):
-                        os.symlink(GENBOX_PROFILE, self.cfg['tmpdir'] + "/etc/make.profile")
+                if not exists(self.cfg['tmpdir'] + "/etc/portage"):
+                        os.makedirs(self.cfg['tmpdir'] + "/etc/portage")
+                if not exists(self.cfg['tmpdir'] + "/etc/portage/make.profile"):
+                        os.symlink(GENBOX_PROFILE, self.cfg['tmpdir'] + "/etc/portage/make.profile")
 
         def _rm_tmpdir(self):
                 if exists(self.cfg["tmpdir"]) and self.cfg["tmpdir"].startswith("/tmp"):
