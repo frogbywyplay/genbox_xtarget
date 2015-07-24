@@ -242,9 +242,9 @@ class XTargetBuilder(object):
                         raise XTargetError("%s is not a directory" % dest_dir)
 
                 # keep distdir global, before updating tmpdir to a target specific dir
+                self.cfg['tmpdir'] = self.cfg["tmpdir"] + "/create_" + target_name
                 distfiles_dir = self.cfg['tmpdir'] + "/distfiles/" + arch
 
-                self.cfg['tmpdir'] = self.cfg["tmpdir"] + "/create_" + target_name
                 scm_storedir = self.cfg['tmpdir'] + "/distfiles/" + arch
                 self._create_configroot(arch)
 
