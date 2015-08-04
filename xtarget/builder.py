@@ -370,7 +370,13 @@ class XTargetBuilder(object):
 		if base_mirror:
 			self.local_env["PORTAGE_BINHOST"] = base_mirror + "/" + rel.get('name', '') + "/" + rel.get('arch', '') + "/" +  xportage.config.get('CHOST', '')
 
-		self.local_env["DISTDIR"] = dir + "/distfiles/"
+		self.local_env["DISTDIR"] = XLAYMAN_BASEDIR + "/distfiles/"
+                if not os.path.exists(XLAYMAN_BASEDIR):
+                    os.makedirs(XLAYMAN_BASEDIR, mode=0755)
+                if not os.path.exists(self.local_env["DISTDIR"]):
+                    os.makedirs(self.local_env["DISTDIR"])
+                    os.chmod(self.local_env["DISTDIR"], 0775)
+                    os.lchown(self.local_env["DISTDIR"], 0, 250) # portage gid = 250
 		self.local_env["PORTAGE_TMPDIR"] = dir + "/build/"
                 if not os.path.exists(self.local_env["PORTAGE_TMPDIR"]):
                         os.makedirs(self.local_env["PORTAGE_TMPDIR"])
