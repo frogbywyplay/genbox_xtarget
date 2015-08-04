@@ -254,6 +254,7 @@ class XTargetBuilder(object):
                 self.local_env["DISTDIR"] = distfiles_dir
                 self.local_env["SCM_STOREDIR"] = scm_storedir
                 self.local_env["ARCH"] = arch
+                self.local_env["TARGET_ARCH"] = arch
                 self.local_env["CONFIG_PROTECT"] = "-*"
                 # create distfiles if needed
                 if distfiles_dir is not None:
