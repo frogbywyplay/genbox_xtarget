@@ -273,6 +273,16 @@ class XTargetBuilder(object):
 
                 if ret != 0:
                         raise XTargetError("Merging the target profile failed", stdout, stderr)
+                # Remove target_pkg from $ROOT/var/lib/portage/world
+                f = open(self.local_env["ROOT"] + "/var/lib/portage/world","r+")
+                installed_packages = f.readlines()
+                f.seek(0)
+                for package in installed_packages:
+                    if not target_pkg.startswith(package):
+                        f.write(package)
+                f.truncate()
+                f.close()
+
                 return dest_dir[:-5]
 
         def create_builddir(self, dir):
