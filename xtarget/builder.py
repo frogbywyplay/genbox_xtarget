@@ -278,10 +278,13 @@ class XTargetBuilder(object):
                 installed_packages = f.readlines()
                 f.seek(0)
                 for package in installed_packages:
-                    if not target_pkg.startswith(package):
+                    if not target_pkg.startswith(package.strip('\n')):
                         f.write(package)
                 f.truncate()
                 f.close()
+                # Remove target_pkg from $ROOT/var/db/pkg
+                category = target_pkg.split('/')[0]
+                shutil.rmtree(self.local_env["ROOT"] + "/var/db/pkg/" + category)
 
                 return dest_dir[:-5]
 
