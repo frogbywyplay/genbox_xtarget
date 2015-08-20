@@ -1,0 +1,19 @@
+#!/bin/bash
+
+: ${GIT:=/usr/bin/git}
+: ${ref_branch:="portage-2.2"}
+
+git_repo="${1}"
+
+pushd ${git_repo} &> /dev/null
+branch=`${GIT} rev-parse --abbrev-ref HEAD`
+if [ ${branch} == ${ref_branch} ]; then
+    exit 0
+fi
+
+remote_branch=`${GIT} branch -r | grep ${ref_branch}`
+if [ -n "${remote_branch}" ]; then
+    ${GIT} branch ${ref_branch} ${remote_branch}
+    ${GIT} checkout ${ref_branch}
+fi
+exit 0
