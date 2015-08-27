@@ -190,38 +190,12 @@ class XTargetBuilder(object):
                 Uses best_match to find the latest version with a package_atom. """
 
                 try:
-                        # find the correct package name
                         if not self.xportage.trees:
                                 self.xportage.create_trees()
-                        try:
-                                target_pkg = self.xportage.best_match(pkg_atom)
-                        except ValueError, e:
-                                raise XTargetError("You must choose a profile in: %s"%e.args)
-                        if target_pkg is None:
-                                raise XTargetError("Can't find any correct target for %s" % pkg_atom)
+                        target_pkg = pkg_atom[1:]
 
-                        # get keywords for this package
-                        target_kwd = self.xportage.portdb.aux_get(target_pkg, ["KEYWORDS"])[0].split()
                 except XPortageError, e:
                         raise XTargetError(str(e))
-
-                # find the arch using kwds
-                curr_kwds = self.__get_keywords(arch).split()
-                arch_list = []
-                for kwd in target_kwd:
-                        if kwd == "-*":
-                                continue
-                        if kwd in curr_kwds:
-                                arch_list.append(kwd)
-                if len(arch_list) == 0:
-                        if arch:
-                                raise XTargetError('Architecture not supported by the package: %s' % arch)
-                        else:
-                                raise XTargetError('Can\'t detect architecture type')
-                elif len(arch_list) != 1:
-                        raise XTargetError('One of the following architecture must be choosen: %s' % ' '.join(arch_list))
-                else:
-                        arch = arch_list[0]
 
                 target_name = target_pkg.split("/", 1)
                 if len(target_name) != 2:
