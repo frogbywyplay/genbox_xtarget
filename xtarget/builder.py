@@ -18,19 +18,22 @@
 #
 #
 
-from xportage import XPortage, XPortageError
-
 import exceptions, os, re
 from os.path import realpath, isdir, exists
 import shutil
-import stat
+from stat import S_IRWXU, S_IRWXG, S_IROTH, S_IXOTH
 
 from subprocess import Popen, PIPE
 from consts import *
 from release import XTargetReleaseParser
 from config import load_config
 from current import get_current_target
-from xportage import XPortage
+
+from portage.exception import InvalidAtom
+from portage.const import USER_CONFIG_PATH, MAKE_CONF_FILE
+from portage.versions import catpkgsplit
+import portage
+from xutils.ebuild.ebuild import EBUILD_VAR_REGEXP
 
 def key(k):
         convert = lambda val: int(val) if val.isdigit() else val
@@ -57,222 +60,241 @@ class XTargetError(exceptions.Exception):
                         return ""
 
 class XTargetBuilder(object):
-        """ A class to manage targets.
-        It uses XPortage to parse the \"targets\" profile """
+        """ A class to manage targets."""
         def __init__(self, arch=None, sync=False, stdout=None, stderr=None, config=None):
                 self.local_env = os.environ.copy()
-                if stdout:
-                        self.stdout = stdout
-                else:
-                        self.stdout = PIPE
-                if stderr:
-                        self.stderr = stderr
-                else:
-                        self.stderr = PIPE
-
+                self.stdout = stdout if stdout else PIPE
+                self.stderr = stderr if stderr else PIPE
                 self.cfg = load_config(config)
+
                 if not sync and not isdir(self.cfg['ov_path']):
-                        raise XTargetError("Can't find targets portage %s" % self.cfg['ov_path'])
+                    error_msg = "Can't find targets portage %s" % self.cfg['ov_path']
+                    raise XTargetError(error = error_msg)
 
-                self.arch_list = []
-                if not sync and exists(self.cfg['ov_path'] + "/profiles/arch.list"):
-                        fd_in = open(self.cfg['ov_path'] + "/profiles/arch.list", 'r')
-                        for line in fd_in.readlines():
-                                self.arch_list.append(line)
-                        fd_in.close()
-                self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
-                self._create_configroot(arch)
-                self.xportage = XPortage(root=self.cfg['tmpdir'])
+                self.arch_list = portage.archlist
 
-        def _create_configroot(self, arch):
-                self._mk_tmpdir()
-                fd_in = open(self.cfg['tmpdir'] + "/etc/portage/make.conf", "w")
-                fd_in.write('PORTDIR="%s"\n' % self.cfg['ov_path'])
-                fd_in.write('PORTDIR_OVERLAY=""\n')
-                fd_in.write('ACCEPT_KEYWORDS="-* %s"\n' % self.__get_keywords(arch))
+        def _create_configroot(self, directory, arch):
+                root_dir = self.__mk_user_portdir(directory)
+                fd_in = open(root_dir + '/' + MAKE_CONF_FILE, "w")
+                fd_in.write('ROOT="%s"\n' % root_dir)
+                fd_in.write('PORTDIR_OVERLAY="%s"\n' % self.cfg['ov_path'])
+                fd_in.write('TARGET_PROFILE="%s"\n' % arch)
                 fd_in.write('FEATURES="-strict"\n')
-                if exists(self.cfg['ov_config']):
-                        fd_in.write(''.join(open(self.cfg['ov_config']).readlines()))
                 fd_in.close()
 
         def list_profiles_ng(self, pkg_atom=None, version=False, filter=None, multi=True):
-                """ List profiles.
-                Returns a tuple of all targets and avaiable targets. """
-                if pkg_atom:
-                        version = True
+                """
+                List available targets from "target" overlay.
+                If pkg_atom is not set: return all known targets present in "target" overlay.
+                If version is set to 'True': return all known targets plus their version.
+                If pkg_atom is set: return all targets and their version matching pkg_atom.
+                """
+                target_list = list()
+                if pkg_atom: version = True
 
-                if not self.xportage.portdb:
-                        self.xportage.create_trees()
                 if pkg_atom is None:
-                        if version:
-                                target_list = self.xportage.portdb.cpv_all()
-                        else:
-                                target_list = self.xportage.portdb.cp_all()
+                    profile_tree = [self.cfg['ov_path']]
+                    profile_categories = ['product-targets']
+                    target_list = portage.portdb.cp_all(categories = profile_categories, trees = profile_tree)
+                    if version:
+                        #target_list = [cpv for cpv in portage.portdb.cpv_all() if cpv.startswith(profile_categories[0] + '/')]
+                        versionned_target_list = list()
+                        for cp in target_list:
+                            versionned_target_list += portage.portdb.cp_list(cp, mytree = [self.cfg['ov_path']])
+                        target_list = versionned_target_list
                 else:
-                        try:
-                                target_list = self.xportage.match_all(pkg_atom, multi=multi)
-                        except XPortageError, e:
-                                raise XTargetError(str(e))
-
-                target_list.sort(key=key)
-                bm = self.xportage.best_match
+                    try:
+                        # Lost "mutli" option/feature ?
+                        target_list = portage.portdb.xmatch("match-all", pkg_atom)
+                    except:
+                        raise XTargetError("unable to match %s" % pkg_atom)
 
                 if len(target_list) == 0:
-                        raise XTargetError("No matching profile found")
+                    raise XTargetError("No matching profile found")
+                target_list.sort(key=key)
+
+                best_match = portage.portdb.xmatch
                 for target in target_list:
-                    atom = target
-                    if version:
-                        atom = "=%s"%atom
+                    atom = "=%s" % target if version else target
                     try:
-                        yield target, (bool(bm(atom)) if filter else True)
-                    except XPortageError, e:
-                        raise XTargetError(str(e))
+                        yield target, (bool(best_match("bestmatch-visible", atom)) if filter else True)
+                    except:
+                        raise XTargetError("fail to correctly match %s" % target)
 
         def list_targets(self):
-                """ List installed targets.
-                Looks for targets in /usr/targets (TARGETS_DIR) """
-                tgt_list = []
+                """
+                List installed targets.
+                Looks for directories present in /usr/targets (TARGETS_DIR).
+                """
+                tgt_list = list()
                 if not os.path.isdir(self.cfg['targets_dir']):
-                        return tgt_list
+                    return tgt_list
+
                 # Since we have a test suite using this output and os.listdir output
                 # is in arbitrary order, we have to add a call to sort method
                 # We can't directly use os.listdir().sort(), since sort is in place
-                tt = os.listdir(self.cfg['targets_dir'])
-                tt.sort()
-                for tgt_name in tt:
-                        tgt_path = os.path.normpath(self.cfg['targets_dir'] + '/' + tgt_name)
-                        tgt_root = os.path.normpath(tgt_path + "/root")
-                        if not os.path.isdir(tgt_path) or \
-                           not os.path.isdir(tgt_root) or \
-                           os.path.islink(tgt_path):
-                                continue
-                        rel = XTargetReleaseParser().get(tgt_path, self.cfg['release_file'])
-                        if not rel:
-                                rel = {}
-                        if rel.has_key('name') and rel.has_key('version'):
-                                tgt_pkg = '%s-%s' % (rel['name'], rel['version'])
-                        else:
-                                tgt_pkg = None
-                        tgt_list.append((tgt_name,
-                                         tgt_pkg,
-                                         rel.get('arch', None),
-                                         rel.get('flags', None)))
+                mydir_list = os.listdir(self.cfg['targets_dir'])
+                mydir_list.sort()
+                for tgt_name in mydir_list:
+                    tgt_path = os.path.normpath(self.cfg['targets_dir'] + '/' + tgt_name)
+                    tgt_root = os.path.normpath(tgt_path + "/root")
+                    if not os.path.isdir(tgt_path) or \
+                       not os.path.isdir(tgt_root) or \
+                       os.path.islink(tgt_path):
+                        continue
+                    release = XTargetReleaseParser().get(tgt_path, self.cfg['release_file'])
+                    if not release:
+                        release = dict
+                    tgt_pkg = release['name'] + '-' + release['version'] if 'name' in release and 'version' in release else None
+                    tgt_list.append((tgt_name,
+                                     tgt_pkg,
+                                     release.get('arch', None),
+                                     release.get('flags', None)))
                 return tgt_list
 
         def set(self, dir):
-                """ Set current target to dir. """
-                if dir is None:
-                        raise XTargetError("Can't set target (empty dest dir)") 
-                if '/' in dir:
-                        target_dir = os.path.realpath(dir)
-                        if target_dir is None or not os.path.isdir(target_dir):
-                                raise XTargetError("Can't find directory %s" % dir)
-                        ln_dir = self.cfg['targets_dir'] + '/'
-                        rel_path = ''
-                        while not target_dir.startswith(ln_dir):
-                                ln_dir = os.path.dirname(ln_dir)
-                                rel_path += '../'
-                        rel_path += target_dir[len(ln_dir):]
-                        dir = rel_path
-                else:
-                        if not os.path.isdir(self.cfg['targets_dir'] + "/" + dir):
-                                raise XTargetError("Can't find target %s" % dir)
-                curr_lnk = "%s/%s" % (self.cfg['targets_dir'], TARGET_CURR)
-                if os.path.islink(curr_lnk):
-                        os.unlink(curr_lnk)
-                os.symlink(dir, curr_lnk)
+            """ Set current target to dir. """
+            if dir is None:
+                raise XTargetError("Can't set target (empty dest dir)")
+            if '/' in dir:
+                target_dir = os.path.realpath(dir)
+                if target_dir is None or not os.path.isdir(target_dir):
+                    raise XTargetError("Can't find directory %s" % dir)
+                ln_dir = self.cfg['targets_dir'] + '/'
+                rel_path = ''
+                while not target_dir.startswith(ln_dir):
+                    ln_dir = os.path.dirname(ln_dir)
+                    rel_path += '../'
+                dir = rel_path + target_dir[len(ln_dir):]
+            else:
+                if not os.path.isdir(self.cfg['targets_dir'] + "/" + dir):
+                    raise XTargetError("Can't find target %s" % dir)
+
+            curr_lnk = self.cfg['targets_dir'] + '/' + TARGET_CURR
+            if os.path.islink(curr_lnk):
+                os.unlink(curr_lnk)
+            os.symlink(dir, curr_lnk)
 
         def get_current(self):
-                return get_current_target(config=self.cfg)
+            return get_current_target(config=self.cfg)
 
         def create(self, pkg_atom, arch=None, dir=None):
-                """ Create a target for given arch from a specific package version.
-                Uses best_match to find the latest version with a package_atom. """
+            """ Create a target for given arch from a specific package version.
+            Uses best_match to find the latest version with a package_atom. """
 
-                try:
-                        if not self.xportage.trees:
-                                self.xportage.create_trees()
-                        target_pkg = pkg_atom[1:]
-
-                except XPortageError, e:
-                        raise XTargetError(str(e))
-
-                target_name = target_pkg.split("/", 1)
-                if len(target_name) != 2:
-                    raise XTargetError('Wrong target name %s' % target_name)
-                target_name = target_name[1]
-
-                if dir is None:
-                        dest_dir = self.cfg['targets_dir'] + '/' + target_name + "/root"
-                elif '/' in dir:
-                        dest_dir = os.path.abspath(dir) + "/root"
+            def _setup_target_dir(directory):
+                if directory is None:
+                    dest_dir = self.cfg['targets_dir'] + '/' + target_name + "/root"
+                elif '/' in directory:
+                    dest_dir = os.path.abspath(directory) + "/root"
                 else:
-                        dest_dir = self.cfg['targets_dir'] + '/' + dir + "/root"
-                        target_name = dir
-
+                    dest_dir = self.cfg['targets_dir'] + '/' + directory + "/root"
                 if not exists(dest_dir):
-                        os.makedirs(dest_dir)
+                    os.makedirs(dest_dir)
                 elif not os.path.isdir(dest_dir):
-                        raise XTargetError("%s is not a directory" % dest_dir)
+                    raise XTargetError("%s is not a directory" % dest_dir)
+                return dest_dir
 
-                # keep distdir global, before updating tmpdir to a target specific dir
-                self.cfg['tmpdir'] = self.cfg["tmpdir"] + "/create_" + target_name
-                distfiles_dir = self.cfg['tmpdir'] + "/distfiles/" + arch
+            root_dir = _setup_target_dir(dir)
+            self._create_configroot(root_dir, arch)
 
-                scm_storedir = self.cfg['tmpdir'] + "/distfiles/" + arch
-                self._create_configroot(arch)
+            try:
+                portage.settings.unlock()
+                portage.settings['ACCEPT_KEYWORDS'] = '*'
+                portage.settings.lock()
+                my_cpv = portage.portdb.xmatch("bestmatch-visible", pkg_atom)
+            except InvalidAtom, e:
+                msg = str(e) + " is not a valid package atom."
+                raise XTargetError(msg)
 
-                self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
-                self.local_env["ROOT"] = dest_dir
-                self.local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
-                self.local_env["DISTDIR"] = distfiles_dir
-                self.local_env["SCM_STOREDIR"] = scm_storedir
-                self.local_env["ARCH"] = arch
-                self.local_env["TARGET_ARCH"] = arch
-                self.local_env["CONFIG_PROTECT"] = "-*"
-                # create distfiles if needed
-                if distfiles_dir is not None:
-                        if not exists(distfiles_dir):
-                                os.makedirs(distfiles_dir)
-                        elif not os.path.isdir(distfiles_dir):
-                                raise XTargetError("%s is not a directory" % distfiles_dir)
-                         #setup permissions for DISTDIR
-                        os.chown(distfiles_dir, -1, 250) #distfiles is owned by portage (250) group
-                        os.chmod(distfiles_dir, stat.S_IRWXU|stat.S_IRWXG|stat.S_IROTH|stat.S_IXOTH) #distfiles has g+rw permissions
-                cmd = Popen(["emerge", "=" + target_pkg], bufsize=-1,
-                                stdout=self.stdout, stderr=self.stderr,
-                                shell=False, cwd=None, env=self.local_env)
+            my_cpv_path = portage.portdb.findname2(my_cpv, mytree = self.cfg['ov_path'])
+            re_git_uri = re.compile(EBUILD_VAR_REGEXP % 'EGIT_REPO_URI')
+            re_git_branch = re.compile(EBUILD_VAR_REGEXP % 'EGIT_BRANCH')
+            re_git_commit = re.compile(EBUILD_VAR_REGEXP % 'EGIT_COMMIT')
+            uri = branch = commit = str()
+
+            f = open(my_cpv_path[0], 'r')
+            my_buffer = f.readlines()
+            f.close()
+
+            for line in my_buffer:
+                if not uri:
+                    match_uri = re_git_uri.match(line)
+                    if match_uri:
+                        uri = match_uri.group('value')
+                        continue
+                if not branch:
+                    match_branch = re_git_branch.match(line)
+                    if match_branch:
+                        branch = match_branch.group('value')
+                        continue
+                if not commit:
+                    match_commit = re_git_commit.match(line)
+                    if match_commit:
+                        commit = match_commit.group('value')
+                        continue
+            if not uri:
+                raise XTargetError("Unable to get EGIT_REPO_URI for %s" % my_cpv)
+
+            #FIXME: use Dulwich python API
+            git_cmd = ['git', 'clone']
+            if branch:
+                git_cmd += ['--single-branch',  '--branch', branch]
+            portdir = realpath(root_dir + '/../portage/' + uri.split('_')[-1])
+            git_cmd += [uri, portdir]
+            cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
+                        shell=False, cwd=None, env=self.local_env)
+            (stdout, stderr) = cmd.communicate()
+            if cmd.returncode != 0:
+                raise XTargetError("Cloning %s failed" % uri, stdout, stderr)
+
+            if commit:
+                git_cmd = ['git', 'reset', '--hard', commit]
+                cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
+                            shell=False, cwd=portdir, env=self.local_env)
                 (stdout, stderr) = cmd.communicate()
-                ret = cmd.returncode
+                if cmd.returncode != 0:
+                    raise XTargetError("Reseting to SHA1 %s failed" % commit, stdout, stderr)
 
-                if ret != 0:
-                        raise XTargetError("Merging the target profile failed", stdout, stderr)
-                # Remove target_pkg from $ROOT/var/lib/portage/world
-                f = open(self.local_env["ROOT"] + "/var/lib/portage/world","r+")
-                installed_packages = f.readlines()
-                f.seek(0)
-                for package in installed_packages:
-                    if not target_pkg.startswith(package.strip('\n')):
-                        f.write(package)
-                f.truncate()
-                f.close()
-                # Remove target_pkg from $ROOT/var/db/pkg
-                category = target_pkg.split('/')[0]
-                shutil.rmtree(self.local_env["ROOT"] + "/var/db/pkg/" + category)
+            profile = realpath(portdir + '/profiles/' + arch)
+            os.chdir(root_dir + '/' + USER_CONFIG_PATH)
+            os.symlink(profile, 'make.profile')
 
-                return dest_dir[:-5]
+            distfiles_dir = TARGETS_DIR + "/distfiles/" 
+            self.local_env["PORTAGE_CONFIGROOT"] = root_dir
+            self.local_env["ROOT"] = root_dir
+            self.local_env["PORTAGE_TMPDIR"] = realpath(root_dir + '/../build')
+            self.local_env["DISTDIR"] = distfiles_dir
+            self.local_env["TARGET_PROFILE"] = arch
 
-        def create_builddir(self, dir):
-                # create build directory if needed
-                dest_dir = dir + '/root'
-                target_config = self.xportage.parse_config(root=dest_dir, config_root=dest_dir, store=False)
-                build_dir = target_config['PORTAGE_TMPDIR']
-                if build_dir is not None:
-                        if not exists(build_dir):
-                                os.makedirs(build_dir)
-                        elif not os.path.isdir(build_dir):
-                                raise XTargetError("Target PORTAGE_TMPDIR (%s) is not a directory" % build_dir)
-                self._rm_tmpdir()
+            if not exists(self.local_env["PORTAGE_TMPDIR"]):
+                os.makedirs(self.local_env["PORTAGE_TMPDIR"])
+
+            # create distfiles if needed
+            if distfiles_dir is not None:
+                if not exists(distfiles_dir):
+                    os.makedirs(distfiles_dir)
+                elif not os.path.isdir(distfiles_dir):
+                    raise XTargetError("%s is not a directory" % distfiles_dir)
+                 #setup permissions for DISTDIR
+                os.chown(distfiles_dir, -1, 250) #distfiles is owned by portage (250) group
+                os.chmod(distfiles_dir, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) #distfiles has g+rw permissions
+
+            cmd = Popen(["emerge", "=" + my_cpv], bufsize=-1,
+                        stdout=self.stdout, stderr=self.stderr,
+                        shell=False, cwd=None, env=self.local_env)
+            (stdout, stderr) = cmd.communicate()
+            if cmd.returncode != 0:
+                raise XTargetError("Installing %s into %s failed" % (my_cpv, root_dir), stdout, stderr)
+
+            xtc_update = ['xtc-update', '--automode', '-5']
+            cmd = Popen(xtc_update, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
+                        shell=False, cwd=None, env=self.local_env)
+            (stdout, stderr) = cmd.communicate()
+            if cmd.returncode != 0:
+                raise XTargetError("Installing %s into %s failed" % (my_cpv, root_dir), stdout, stderr)
+
+            return realpath(root_dir + '/..')
 
         def delete(self, dir):
                 """ Delete a target.
@@ -349,36 +371,6 @@ class XTargetBuilder(object):
                                 if ret != 0:
                                         raise XTargetError("Syncing overlays of target failed")
 
-                self.local_env["ROOT"] = dir + '/root/'
-                rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
-                xportage = XPortage(root=dir + "/root")
-
-		base_mirror = xportage.config['BASE_MIRROR']
-		if base_mirror:
-			self.local_env["PORTAGE_BINHOST"] = base_mirror + "/" + rel.get('name', '') + "/" + rel.get('arch', '') + "/" +  xportage.config.get('CHOST', '')
-
-		self.local_env["DISTDIR"] = XLAYMAN_BASEDIR + "/distfiles/"
-                if not os.path.exists(XLAYMAN_BASEDIR):
-                    os.makedirs(XLAYMAN_BASEDIR, mode=0755)
-                if not os.path.exists(self.local_env["DISTDIR"]):
-                    os.makedirs(self.local_env["DISTDIR"])
-                    os.chmod(self.local_env["DISTDIR"], 0775)
-                    os.lchown(self.local_env["DISTDIR"], 0, 250) # portage gid = 250
-		self.local_env["PORTAGE_TMPDIR"] = dir + "/build/"
-                if not os.path.exists(self.local_env["PORTAGE_TMPDIR"]):
-                        os.makedirs(self.local_env["PORTAGE_TMPDIR"])
-
-                if not self.cfg['create_libc']:
-                        return
-		cmd2 = Popen(["emerge", "-bug", "virtual/libc"], bufsize=-1,
-                            stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env)
-                (stdout2, stderr2) = cmd2.communicate()
-                ret2 = cmd2.returncode
-
-                if ret2 != 0:
-                        raise XTargetError("Merging libc failed", stdout2, stderr2)
-
         def get(self, key):
                 rel = XTargetReleaseParser().get(self.get_current(), self.cfg['release_file'])
                 if not rel:
@@ -387,17 +379,15 @@ class XTargetBuilder(object):
                         raise XTargetError("Key '%s' is not available in target release file" % key)
                 return rel[key]
 
-        def _mk_tmpdir(self):
-                if not exists(self.cfg['tmpdir'] + "/etc"):
-                        os.makedirs(self.cfg['tmpdir'] + "/etc")
-                if not exists(self.cfg['tmpdir'] + "/etc/portage"):
-                        os.makedirs(self.cfg['tmpdir'] + "/etc/portage")
-                if not exists(self.cfg['tmpdir'] + "/etc/portage/make.profile"):
-                        os.symlink(GENBOX_PROFILE, self.cfg['tmpdir'] + "/etc/portage/make.profile")
-
-        def _rm_tmpdir(self):
-                if exists(self.cfg["tmpdir"]) and self.cfg["tmpdir"].startswith("/tmp"):
-                        shutil.rmtree(self.cfg["tmpdir"])
+        def __mk_user_portdir(self, root):
+                """
+                Create base directory ${ROOT}/etc/portage if it does not exist
+                Returns ${ROOT} (use to set PORTAGE_CONFIGROOT)
+                """
+                user_portdir = realpath(root + '/' + USER_CONFIG_PATH)
+                if not exists(user_portdir):
+                    os.makedirs(user_portdir)
+                return root
 
         def __get_keywords(self, arch):
                 if arch:

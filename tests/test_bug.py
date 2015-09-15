@@ -49,7 +49,6 @@ class xtargetBuilderTester(unittest.TestCase):
         cfg.write('[consts]\n')
         cfg.write('dir = %s\n' % (self.path + TMP_TARGETS))
         cfg.write('portdir = %s\n' % (self.path + OV_TARGETS))
-        cfg.write('tmpdir =%s\n' % self.tmp_dir)
         cfg.close()
         
     def __cleanTmpTargets(self):

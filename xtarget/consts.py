@@ -33,7 +33,6 @@ GENBOX_PROFILE =       "/etc/portage/make.profile"
 TARGETS_PORTDIR =      LAYMAN_BASEDIR + "targets"
 TARGETS_DIR =          "/usr/targets/"
 TARGETS_RELEASE_FILE = "/etc/target-release"
-TARGETS_TMPDIR =       "/tmp/.xtarget"
 
 TARGET_VAR = "CURRENT_TARGET"
 TARGET_CURR = "current"
