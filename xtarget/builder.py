@@ -198,6 +198,11 @@ class XTargetBuilder(object):
 
             root_dir = _setup_target_dir(dir)
             self._create_configroot(root_dir, arch)
+            os.chdir(TARGETS_DIR)
+            os.symlink(realpath(root_dir + '/../'), 'current')
+            # copy layman config file for cross-build into SYSROOT/etc/
+            from shutil import copy
+            copy(XLAYMAN_CFG,root_dir + '/etc/')
 
             try:
                 portage.settings.unlock()
@@ -354,12 +359,8 @@ class XTargetBuilder(object):
                         dir = get_current_target(config=self.cfg)
 
                 self.local_env["ROOT"] = '/' #bec. layman will search for ${ROOT}/usr/bin/hg
-                self.local_env["PORTAGE_CONFIGROOT"] = TARGET_BASEDIR + "root/"
+                self.local_env["PORTAGE_CONFIGROOT"] = realpath(TARGET_BASEDIR + "root/")
                 self.local_env["NO_TARGET_UPDATE"] = "True"
-
-                # copy layman config file for cross-build into SYSROOT/etc/
-                from shutil import copy
-                copy(XLAYMAN_CFG,TARGET_BASEDIR + 'root/etc/')
 
                 rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
                 if rel and rel.has_key('overlay'):
