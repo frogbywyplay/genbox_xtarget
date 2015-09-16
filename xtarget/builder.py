@@ -184,6 +184,7 @@ class XTargetBuilder(object):
 
             def _setup_target_dir(directory):
                 if directory is None:
+                    target_name = pkg_atom[1:].split('/')[1]
                     dest_dir = self.cfg['targets_dir'] + '/' + target_name + "/root"
                 elif '/' in directory:
                     dest_dir = os.path.abspath(directory) + "/root"
