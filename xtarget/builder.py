@@ -19,7 +19,7 @@
 #
 
 import exceptions, os, re
-from os.path import realpath, isdir, exists
+from os.path import realpath, isdir, islink, exists
 import shutil
 from stat import S_IRWXU, S_IRWXG, S_IROTH, S_IXOTH
 
@@ -199,6 +199,8 @@ class XTargetBuilder(object):
             root_dir = _setup_target_dir(dir)
             self._create_configroot(root_dir, arch)
             os.chdir(TARGETS_DIR)
+            if exists(TARGETS_DIR + 'current') and islink(TARGETS_DIR + 'current'):
+                os.unlink(TARGETS_DIR + 'current')
             os.symlink(realpath(root_dir + '/../'), 'current')
             # copy layman config file for cross-build into SYSROOT/etc/
             from shutil import copy
