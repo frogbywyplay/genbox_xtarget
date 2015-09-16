@@ -33,6 +33,7 @@ from portage.exception import InvalidAtom
 from portage.const import USER_CONFIG_PATH, MAKE_CONF_FILE
 from portage.versions import catpkgsplit
 import portage
+from xutils import info
 from xutils.ebuild.ebuild import EBUILD_VAR_REGEXP
 
 def key(k):
@@ -199,7 +200,7 @@ class XTargetBuilder(object):
             root_dir = _setup_target_dir(dir)
             self._create_configroot(root_dir, arch)
             os.chdir(TARGETS_DIR)
-            if exists(TARGETS_DIR + 'current') and islink(TARGETS_DIR + 'current'):
+            if islink(TARGETS_DIR + 'current'):
                 os.unlink(TARGETS_DIR + 'current')
             os.symlink(realpath(root_dir + '/../'), 'current')
             # copy layman config file for cross-build into SYSROOT/etc/
@@ -331,6 +332,11 @@ class XTargetBuilder(object):
                 ret = cmd.returncode
                 if ret != 0:
                         raise XTargetError("Deleting target failed", stdout, stderr)
+
+                if realpath(target_dir) == realpath(TARGETS_DIR + 'current'):
+                    if islink(TARGETS_DIR + 'current'):
+                        info('Remove "current" symlink pointing to %s' %  realpath(target_dir))
+                        os.unlink(TARGETS_DIR + 'current')
 
                 return ret
 
