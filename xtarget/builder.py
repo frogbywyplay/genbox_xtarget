@@ -246,16 +246,17 @@ class XTargetBuilder(object):
                 raise XTargetError("Unable to get EGIT_REPO_URI for %s" % my_cpv)
 
             #FIXME: use Dulwich python API
-            git_cmd = ['git', 'clone']
-            if branch:
-                git_cmd += ['--single-branch',  '--branch', branch]
             portdir = realpath(root_dir + '/../portage/' + uri.split('_')[-1])
-            git_cmd += [uri, portdir]
-            cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
-                        shell=False, cwd=None, env=self.local_env)
-            (stdout, stderr) = cmd.communicate()
-            if cmd.returncode != 0:
-                raise XTargetError("Cloning %s failed" % uri, stdout, stderr)
+            if not exists(portdir):
+                git_cmd = ['git', 'clone']
+                if branch:
+                    git_cmd += ['--single-branch',  '--branch', branch]
+                git_cmd += [uri, portdir]
+                cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
+                            shell=False, cwd=None, env=self.local_env)
+                (stdout, stderr) = cmd.communicate()
+                if cmd.returncode != 0:
+                    raise XTargetError("Cloning %s failed" % uri, stdout, stderr)
 
             if commit:
                 git_cmd = ['git', 'reset', '--hard', commit]
@@ -267,7 +268,8 @@ class XTargetBuilder(object):
 
             profile = realpath(portdir + '/profiles/' + arch)
             os.chdir(root_dir + '/' + USER_CONFIG_PATH)
-            os.symlink(profile, 'make.profile')
+            if not exists('make.profile'):
+                os.symlink(profile, 'make.profile')
 
             distfiles_dir = TARGETS_DIR + "/distfiles/" 
             self.local_env["PORTAGE_CONFIGROOT"] = root_dir
