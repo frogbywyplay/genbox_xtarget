@@ -195,7 +195,28 @@ class XTargetBuilder(object):
                     os.makedirs(dest_dir)
                 elif not os.path.isdir(dest_dir):
                     raise XTargetError("%s is not a directory" % dest_dir)
+                os.chmod(realpath(dest_dir + '/..'), 01777)
                 return dest_dir
+
+            def _demote(user, group):
+                def run():
+                    """Set group before user else may get a permission denied"""
+                    from pwd import getpwnam
+
+                    gid = getpwnam(group).pw_gid
+                    os.setgid(gid)
+                    uid = getpwnam(user).pw_uid
+                    os.setuid(uid)
+                return run
+
+            def _git_env(user):
+                from pwd import getpwnam
+
+                pw_record = getpwnam(user)
+                env = os.environ.copy()
+                env['HOME'] = pw_record.pw_dir
+                env['USER'] = pw_record.pw_name
+                return env
 
             root_dir = _setup_target_dir(dir)
             self._create_configroot(root_dir, arch)
@@ -253,7 +274,7 @@ class XTargetBuilder(object):
                     git_cmd += ['--single-branch',  '--branch', branch]
                 git_cmd += [uri, portdir]
                 cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
-                            shell=False, cwd=None, env=self.local_env)
+                            shell=False, cwd=None, env=_git_env('developer'), preexec_fn=_demote('developer', 'portage'))
                 (stdout, stderr) = cmd.communicate()
                 if cmd.returncode != 0:
                     raise XTargetError("Cloning %s failed" % uri, stdout, stderr)
@@ -261,7 +282,7 @@ class XTargetBuilder(object):
             if commit:
                 git_cmd = ['git', 'reset', '--hard', commit]
                 cmd = Popen(git_cmd, bufsize=-1, stdout=self.stdout, stderr=self.stderr,
-                            shell=False, cwd=portdir, env=self.local_env)
+                            shell=False, cwd=portdir, env=_git_env('developer'), preexec_fn=_demote('developer', 'portage'))
                 (stdout, stderr) = cmd.communicate()
                 if cmd.returncode != 0:
                     raise XTargetError("Reseting to SHA1 %s failed" % commit, stdout, stderr)
@@ -277,18 +298,24 @@ class XTargetBuilder(object):
             self.local_env["PORTAGE_TMPDIR"] = realpath(root_dir + '/../build')
             self.local_env["DISTDIR"] = distfiles_dir
             self.local_env["TARGET_PROFILE"] = arch
+            self.local_env["PORTAGE_USERNAME"] = 'developer'
+            self.local_env["PORTAGE_GRPNAME"] = 'portage'
+
 
             if not exists(self.local_env["PORTAGE_TMPDIR"]):
                 os.makedirs(self.local_env["PORTAGE_TMPDIR"])
 
             # create distfiles if needed
             if distfiles_dir is not None:
+                from pwd import getpwnam
                 if not exists(distfiles_dir):
                     os.makedirs(distfiles_dir)
                 elif not os.path.isdir(distfiles_dir):
                     raise XTargetError("%s is not a directory" % distfiles_dir)
                  #setup permissions for DISTDIR
-                os.chown(distfiles_dir, -1, 250) #distfiles is owned by portage (250) group
+                uid = getpwnam('developer').pw_uid
+                gid = getpwnam('portage').pw_gid
+                os.chown(distfiles_dir, uid, gid) #distfiles is owned by portage (250) group
                 os.chmod(distfiles_dir, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) #distfiles has g+rw permissions
 
             cmd = Popen(["emerge", "=" + my_cpv], bufsize=-1,
