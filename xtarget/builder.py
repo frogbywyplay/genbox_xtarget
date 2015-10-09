@@ -34,7 +34,8 @@ from portage.const import USER_CONFIG_PATH, MAKE_CONF_FILE
 from portage.versions import catpkgsplit
 import portage
 from xutils import info
-from xutils.ebuild.ebuild import EBUILD_VAR_REGEXP
+
+EBUILD_VAR_REGEXP=r'^\s*(?P<def>:\s+\${)?(?P<var>%s)(?(def):)?=(?P<dbl>\")?(?P<value>(?:[^\\"]|\\.)*)(?(dbl)\")(?(def)})\s*(?:#.*)?$'
 
 def key(k):
         convert = lambda val: int(val) if val.isdigit() else val
