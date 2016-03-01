@@ -367,9 +367,20 @@ class XTargetBuilder(object):
 		self.local_env["DISTDIR"] = dir + "/distfiles/"
 		self.local_env["PORTAGE_TMPDIR"] = dir + "/build/"
 
-                if not self.cfg['create_libc']:
+                if not self.cfg["create_bootstrap"]:
                         return
-		cmd2 = Popen(["emerge", "-bug", "virtual/libc"], bufsize=-1,
+
+                # For backward compatibility.
+                bootstrap_package = "virtual/libc"
+
+                # If bootstrap package defined, use it instead.
+                cmd = Popen(["emerge", "-p", "virtual/bootstrap"], bufsize=-1,
+                            shell=False, cwd=None, env=self.local_env)
+                cmd.communicate()
+                if cmd.returncode == 0:
+                        bootstrap_package = "virtual/bootstrap"
+
+		cmd2 = Popen(["emerge", "-bugn", bootstrap_package], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
                             cwd=None, env=self.local_env)
                 (stdout2, stderr2) = cmd2.communicate()

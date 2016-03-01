@@ -44,7 +44,9 @@ def load_config(config_files=None):
 
         config['create_autocurrent'] = cfg.getboolean('create', 'autocurrent', False)
         config['create_autosync'] = cfg.getboolean('create', 'autosync', False)
-        config['create_libc'] = cfg.getboolean('create', 'libc', True)
+        config['create_bootstrap'] = cfg.getboolean('create', 'bootstrap',
+            # For backward compatibility
+            cfg.getboolean('create', 'libc', True))
 
         config['ask_delete'] = cfg.getboolean('ui', 'ask_delete', False)
         del cfg
