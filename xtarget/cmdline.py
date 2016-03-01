@@ -97,12 +97,12 @@ class XTargetCmdline(XTargetBuilder):
                 if self.cfg['create_autocurrent']:
                         # set new target to be current one
                         self.set(target_dir)
-                        if self.cfg['create_autosync']:
-                                try:
-                                        XTargetBuilder.sync_overlay(self, target_dir)
-                                except XTargetError, e:
-                                        die(str(e))
-                                info("Overlays of target %s sync" % target_dir)
+                if self.cfg['create_autosync']:
+                        try:
+                                XTargetBuilder.sync_overlay(self, target_dir)
+                        except XTargetError, e:
+                                die(str(e))
+                        info("Overlays of target %s sync" % target_dir)
 
         def list_targets(self):
                 tgt_list = XTargetBuilder.list_targets(self)
