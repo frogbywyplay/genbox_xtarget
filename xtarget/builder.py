@@ -247,13 +247,13 @@ class XTargetBuilder(object):
                 scm_storedir = self.cfg['tmpdir'] + "/distfiles/" + arch
                 self._create_configroot(arch)
 
-                self.local_env["PORTAGE_CONFIGROOT"] = self.cfg['tmpdir']
-                self.local_env["ROOT"] = dest_dir
-                self.local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
-                self.local_env["DISTDIR"] = distfiles_dir
-                self.local_env["SCM_STOREDIR"] = scm_storedir
-                self.local_env["ARCH"] = arch
-                self.local_env["CONFIG_PROTECT"] = "-*"
+                local_env = self.local_env.copy()
+                local_env["ROOT"] = dest_dir
+                local_env["PORTAGE_TMPDIR"] = self.cfg['tmpdir']
+                local_env["DISTDIR"] = distfiles_dir
+                local_env["SCM_STOREDIR"] = scm_storedir
+                local_env["ARCH"] = arch
+                local_env["CONFIG_PROTECT"] = "-*"
                 # create distfiles if needed
                 if distfiles_dir is not None:
                         if not exists(distfiles_dir):
@@ -262,7 +262,7 @@ class XTargetBuilder(object):
                                 raise XTargetError("%s is not a directory" % distfiles_dir)
                 cmd = Popen(["emerge", "=" + target_pkg], bufsize=-1,
                                 stdout=self.stdout, stderr=self.stderr,
-                                shell=False, cwd=None, env=self.local_env)
+                                shell=False, cwd=None, env=local_env)
                 (stdout, stderr) = cmd.communicate()
                 ret = cmd.returncode
 
@@ -312,21 +312,22 @@ class XTargetBuilder(object):
         def sync(self):
                 """Sync /usr/local/portage/targets overlay"""
                 path = os.path.basename(self.cfg['ov_path']).upper()
+                local_env = self.local_env.copy()
                 for var in ['PROTO', 'URI', 'REVISION', 'BRANCH']:
                         environ_var = 'PORTAGE_%s_%s' % (path, var)
                         cfg_var = 'ov_' + var.lower()
-                        if not self.local_env.has_key(environ_var) and \
+                        if not local_env.has_key(environ_var) and \
                            self.cfg.get(cfg_var, None):
-                                self.local_env[environ_var] = self.cfg[cfg_var]
+                                local_env[environ_var] = self.cfg[cfg_var]
 
                 # Required to avoid "please update portage" warning
-                self.local_env["ROOT"] = self.cfg['tmpdir'] 
+                local_env["ROOT"] = self.cfg['tmpdir']
                 # This is not a target update, skip the conf checking
-                self.local_env["NO_TARGET_UPDATE"] = "True"
+                local_env["NO_TARGET_UPDATE"] = "True"
 
                 cmd = Popen(["emerge", "--sync"], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env)
+                            cwd=None, env=local_env)
                 (stdout, stderr) = cmd.communicate()
                 ret = cmd.returncode
                 if ret != 0:
@@ -337,19 +338,20 @@ class XTargetBuilder(object):
                 if not dir:
                         dir = get_current_target(config=self.cfg)
 
-                self.local_env["ROOT"] = dir + "/root/"
-                self.local_env["PORTAGE_CONFIGROOT"] = dir + "/root/"
-                self.local_env["NO_TARGET_UPDATE"] = "True"
+                local_env = self.local_env.copy()
+                local_env["ROOT"] = dir + "/root/"
+                local_env["PORTAGE_CONFIGROOT"] = dir + "/root/"
+                local_env["NO_TARGET_UPDATE"] = "True"
 
                 rel = XTargetReleaseParser().get(dir, self.cfg['release_file'])
                 if rel and rel.has_key('overlay'):
                         for ov in rel['overlay']:
                                 var = "PORTAGE_%s_REVISION" % ov['name'].upper()
-                                self.local_env[var] = ov['version']
+                                local_env[var] = ov['version']
 
                 cmd = Popen(["emerge", "--sync"], bufsize=-1,
                         stdout=self.stdout, stderr=self.stderr, shell=False,
-                        cwd=None, env=self.local_env)
+                        cwd=None, env=local_env)
                 (stdout, stderr) = cmd.communicate()
                 ret = cmd.returncode
 
@@ -362,10 +364,10 @@ class XTargetBuilder(object):
 
 		base_mirror = xportage.config['BASE_MIRROR']
 		if base_mirror:
-			self.local_env["PORTAGE_BINHOST"] = base_mirror + "/" + rel.get('name', '') + "/" + rel.get('arch', '') + "/" +  xportage.config.get('CHOST', '')
+			local_env["PORTAGE_BINHOST"] = base_mirror + "/" + rel.get('name', '') + "/" + rel.get('arch', '') + "/" +  xportage.config.get('CHOST', '')
 
-		self.local_env["DISTDIR"] = dir + "/distfiles/"
-		self.local_env["PORTAGE_TMPDIR"] = dir + "/build/"
+		local_env["DISTDIR"] = dir + "/distfiles/"
+		local_env["PORTAGE_TMPDIR"] = dir + "/build/"
 
                 if not self.cfg["create_bootstrap"]:
                         return
@@ -375,14 +377,14 @@ class XTargetBuilder(object):
 
                 # If bootstrap package defined, use it instead.
                 cmd = Popen(["emerge", "-p", "virtual/bootstrap"], bufsize=-1,
-                            shell=False, cwd=None, env=self.local_env)
+                            shell=False, cwd=None, env=local_env)
                 cmd.communicate()
                 if cmd.returncode == 0:
                         bootstrap_package = "virtual/bootstrap"
 
 		cmd2 = Popen(["emerge", "-bugn", bootstrap_package], bufsize=-1,
                             stdout=self.stdout, stderr=self.stderr, shell=False,
-                            cwd=None, env=self.local_env)
+                            cwd=None, env=local_env)
                 (stdout2, stderr2) = cmd2.communicate()
                 ret2 = cmd2.returncode
 
